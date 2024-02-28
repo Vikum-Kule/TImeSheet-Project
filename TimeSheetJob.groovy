@@ -200,7 +200,6 @@ node('master') {
                           }
                         }
                       }else{
-                            //nothing
                       }
                   }
                 } 
