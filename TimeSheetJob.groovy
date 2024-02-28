@@ -21,12 +21,15 @@ def pipelineHelper
 String tempoClientId = 'TEMPO_CLIENT_ID'
 String tempoClientSecret = 'TEMPO_CLIENT_SECRET'
 String tempoCode = 'TEMPO_CODE'
+String jiraClientId = 'JIRA_CLIENT_ID'
+String jiraClientSecret = 'JIRA_CLIENT_SECRET'
+String jiraCode = 'JIRA_CODE' 
 
 //tokens
 tempoAccessToken = 'HhYhUG2PQoZ3HgrdMDFQqy5Umab3j2iFLlFrhVNROJE-us'
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
 jiraAccessToken = null
-jiraRefreshToken = null 
+jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
 
 Map stagesMap
 String workspacePath
@@ -37,8 +40,11 @@ String jobExecutionNode = 'master'
 teamResponse = null
 mainJSON = null
 
+String tempoRefreshBody
+String jiraRefreshBody
 
-def sendGetRequest(url, header, platform, refreshPayload) {
+
+def sendGetRequest(url, header, platform, refreshTokenPayload) {
     def response = httpRequest(url: url,
                                customHeaders: header ,
                                httpMode: 'GET',
@@ -47,7 +53,7 @@ def sendGetRequest(url, header, platform, refreshPayload) {
     if (response.status == 401){
       if (platform == "TEMPO"){
           String tempoRefreshUrl = 'https://api.tempo.io/oauth/token/?grant_type=&client_id=&client_secret=&refresh_token'
-          // def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshPayload)
+          // def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
           // save on disk
           def jsonResponse = readJSON text: tempoTokenPayload.content
           tempoAccessToken = jsonResponse.access_token
@@ -60,8 +66,24 @@ def sendGetRequest(url, header, platform, refreshPayload) {
                   data.value = "Bearer ${tempoAccessToken}"
               }
           }
-          sendGetRequest(url, header, platform, refreshPayload)
-      }else{
+          sendGetRequest(url, header, platform, refreshTokenPayload)
+      }else if (platform == "JIRA"){
+          String tempoRefreshUrl = 'https://auth.atlassian.com/oauth/token'
+          // def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
+          // save on disk
+          def jsonResponse = readJSON text: tempoTokenPayload.content
+          tempoAccessToken = jsonResponse.access_token
+          def refreshToken = jsonResponse.refresh_token
+          updateTokens(refreshToken)
+
+          //update header with new access token
+          header.each { data ->
+              if (data.name == "Authorization") {
+                  data.value = "Bearer ${tempoAccessToken}"
+              }
+          }
+          sendGetRequest(url, header, platform, refreshTokenPayload)
+
       }
     }
     else{
@@ -139,21 +161,31 @@ def updateTokens(refreshToken) {
 
 node('master') {
   try {
+    stage('Preparation') {
+      cleanWs()
+      withCredentials([
+            string(credentialsId: tempoClientId, variable: 'clientIdTempo'),
+            string(credentialsId: tempoClientSecret, variable: 'clientSecretTempo'),
+            string(credentialsId: jiraClientId, variable: 'clientIdJira'),
+            string(credentialsId: jiraClientSecret, variable: 'clientSecretJira'),
+            string(credentialsId: jiraCode, variable: 'codeJira')
+      ]){
+        //prepare payload for refresh tokens
+        tempoRefreshBody = "grant_type=refresh_token&client_id=${clientIdTempo}&client_secret=${clientSecretTempo}&redirect_uri=https://enactor.co/&refresh_token="
+        jiraRefreshBody = "grant_type=refresh_token&client_id=${clientIdJira}&client_secret=${clientSecretJira}&code=${codeJira}&redirect_uri=https://enactor.co/&refresh_token="
+
+      }
+    }
     stage('GetAllTeams'){
       String fetchTeamUrl = "https://api.tempo.io/4/teams"
       withCredentials([
-            string(credentialsId: tempoClientId, variable: 'clientId'),
-            string(credentialsId: tempoClientSecret, variable: 'clientSecret'),
-            string(credentialsId: tempoRefreshToken, variable: 'refreshToken')
+            string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
       ]){
         def requestHeaders = [[
                                   name: "Authorization",
                                   value: "Bearer ${tempoAccessToken}"
                               ]]
-        //prepare payload for refresh token
-        def refreshTokenPayload = "grant_type=refresh_token&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=https://enactor.co/&refresh_token=${refreshToken}"
-        println("get teams before access token: ${tempoAccessToken}")
-        teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", refreshTokenPayload)
+        teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}&${refreshTokenTempo}" )
 
       }
     }
@@ -161,9 +193,8 @@ node('master') {
     stage('FetchTimeSheets'){
       if(teamResponse){
           withCredentials([
-              string(credentialsId: tempoClientId, variable: 'clientId'),
-              string(credentialsId: tempoClientSecret, variable: 'clientSecret'),
-              string(credentialsId: tempoRefreshToken, variable: 'refreshToken')
+              string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo'),
+              string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
             ]){
                 mainJSON  = readJSON(text: teamResponse.content)
                 //remove properties that are not needed
@@ -171,7 +202,7 @@ node('master') {
                 mainJSON.remove('metadata')
 
                 //rename feilds
-                mainJSON.teams = json.results
+                mainJSON.teams = mainJSON.results
                 mainJSON.remove('results')
 
                 mainJSON.teams.each { team ->
@@ -187,16 +218,28 @@ node('master') {
                                       name: "Authorization",
                                       value: "Bearer ${tempoAccessToken}"
                                   ]]
-                  def refreshTokenPayload = "grant_type=refresh_token&client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=https://enactor.co/&refresh_token=${refreshToken}"
-                  def timeSheetResponse = sendGetRequest(fetchTomeSheetUrl, requestHeaders, "TEMPO", refreshTokenPayload)
+                  def timeSheetResponse = sendGetRequest(fetchTomeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}&${refreshTokenTempo}" )
+
                   if(timeSheetResponse){
                       if(timeSheetResponse.status == 200){
                         def timeSheetjson  = readJSON(text: timeSheetResponse.content)
                         //filter apporoved timesheets
                         timeSheetjson.results.each { timesheet ->
                           if(timesheet.status.key == "APPROVED"){
+                              //update actor
+                              // def jiraRequestHeaders = [[
+                              //         name: "Authorization",
+                              //         value: "Bearer ${jiraAccessToken}"
+                              //     ]]
+                              // def timeSheetResponse = sendGetRequest(fetchTomeSheetUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}&${refreshToken-tempo}" )
+
+                              //update user
+
+                              //update reviewer
+
                               //add worklogs to teams JSON
                               team.timesheets = timesheet
+
                           }
                         }
                       }else{
