@@ -28,7 +28,7 @@ String jiraCode = 'JIRA_CODE'
 //tokens
 tempoAccessToken = 'HhYhUG2PQoZ3HgrdMDFQqy5Umab3j2iFLlFrhVNROJE-us'
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
-jiraAccessToken = null
+jiraAccessToken = 'eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJiY2FmMTY0MS1hMTE4LTRjZDItOTQ3ZS1mZDZiMDhlYTYyY2IiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkxOTE2MTUsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MTkxNjE1LCJleHAiOjE3MDkxOTUyMTUsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyByZWFkOmppcmEtdXNlciByZWFkOmppcmEtd29yayIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9ydGkiOiIyYzYyY2I3NC1iMzIxLTQxMjUtODc3Yi02ZTkyYTljNzJlY2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsIjoiNTcxYWY3ZWQtOGVmNy00NWQ1LWJmNWMtYTE4ZmRkNjdlODc2QGNvbm5lY3QuYXRsYXNzaWFuLmNvbSIsImNsaWVudF9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL2F0bF90b2tlbl90eXBlIjoiQUNDRVNTIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL2ZpcnN0UGFydHkiOmZhbHNlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudElkIjoiNzEyMDIwOjMzMjQ5MzNkLTI3OWUtNGIxMC04NDhjLTY3YWFlOGEwZDRkMCIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9zZXNzaW9uX2lkIjoiNDAwNmIzZmUtZTAyZC00YjliLWJkZDUtNTE2YjE3OThmN2NiIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vZW1haWxEb21haW4iOiJlbmFjdG9yLmNvLnVrIiwidmVyaWZpZWQiOiJ0cnVlIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Byb2Nlc3NSZWdpb24iOiJ1cy1lYXN0LTEiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcmVmcmVzaF9jaGFpbl9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQLTVlMDA5NTBhNDAwNmVhMGVhMzI2ZDdjYy1kNTRmNzQ5OS0xYWM4LTQzZjEtOWUzNi00ZDQ3OTI0NTM1M2YiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdWp0IjoiNzQ2OTAxZTAtZGZhZi00ZjAwLWI2YWUtM2NhNjBlN2Q0ZGQ4IiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tLzNsbyI6dHJ1ZSwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29yZ0lkIjoiYzZkMDQ5OGYtMjIyNC00OGEzLTgzY2EtMTMzMDViMDA3ZjI5IiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.Ks5ZV91EMXzltT5DhKdmEPPPi5-Jl7tVNumAxkZw3OTnTneuY5bKgwX6SuacST09y7B79SZ9thxAQKFaYH_CCV6pmb-KfKQpsA4xigBgJeYLaEgVjaJMzYHbYnHrjZ6pyWJdUUOxTEIx2bmE_mWFZDPEcV7OhNNDKOhzZbSiz3AlOlsxQP-YraRpROaGfvSOZO8r0i82QdGNSMvoX10aXd1vH6meWLvUzkgwKUuoUkvdwPAS4KVZ0u0l2lAV4yD8ERuch3YT4pQ5dwTkf_i8Qd1kRafy10EciojOESKUVZ_C3RWPz1jlGoZ-7fwdfTW_zIGXYbZf9JDPhe699r4kwA'
 jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
 
 Map stagesMap
@@ -58,7 +58,7 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
           def jsonResponse = readJSON text: tempoTokenPayload.content
           tempoAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
-          updateTokens(refreshToken)
+          updateTokens(refreshToken, tempoRefreshToken)
 
           //update header with new access token
           header.each { data ->
@@ -69,17 +69,17 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
           sendGetRequest(url, header, platform, refreshTokenPayload)
       }else if (platform == "JIRA"){
           String tempoRefreshUrl = 'https://auth.atlassian.com/oauth/token'
-          // def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
+          def jiraTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
           // save on disk
-          def jsonResponse = readJSON text: tempoTokenPayload.content
-          tempoAccessToken = jsonResponse.access_token
+          def jsonResponse = readJSON text: jiraTokenPayload.content
+          jiraAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
-          updateTokens(refreshToken)
+          updateTokens(refreshTokent, jiraRefreshToken)
 
           //update header with new access token
           header.each { data ->
               if (data.name == "Authorization") {
-                  data.value = "Bearer ${tempoAccessToken}"
+                  data.value = "Bearer ${jiraAccessToken}"
               }
           }
           sendGetRequest(url, header, platform, refreshTokenPayload)
@@ -124,7 +124,7 @@ def refreshTokens (url, payload){
 
 }
 
-def updateTokens(refreshToken) {
+def updateTokens(refreshToken, credentialId) {
 
   // Specify the new secret text
   def newSecretText = refreshToken
@@ -140,7 +140,7 @@ def updateTokens(refreshToken) {
       .getStore()
       .getCredentials(globalDomain)
 
-  def credentialToUpdate = existingCredential.find { it.id == tempoRefreshToken && it instanceof StringCredentials }
+  def credentialToUpdate = existingCredential.find { it.id == credentialId && it instanceof StringCredentials }
 
   if (credentialToUpdate) {
       // Update the credential with new secret text
@@ -157,6 +157,20 @@ def updateTokens(refreshToken) {
   } else {
       println("Credential with ID ${tempoRefreshToken} not found.")
   }
+}
+
+def organizeUserDetails(userId, refreshBody, refreshToken){
+  String userBaseUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/user?accountId="
+   //update actor
+   def jiraActorRequestHeaders = [[
+           name: "Authorization",
+           value: "Bearer ${jiraAccessToken}"
+       ]]
+   def userResponse = sendGetRequest("${userBaseUrl}${userId}", jiraActorRequestHeaders, "JIRA", "${refreshBody}&${refreshToken}" )
+   println("user detals: ${userResponse.content}")
+
+   def userJson  = readJSON(text: userResponse.content)
+   return userJson
 }
 
 node('master') {
@@ -212,36 +226,22 @@ node('master') {
                    //fetched projectId and projectNames
                   println "Team ID: $teamId, team Name: $teamName"
 
-                  String fetchTomeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=2024-02-26&to=2024-03-03"
+                  String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=2024-02-26&to=2024-03-03"
 
                   def requestHeaders = [[
                                       name: "Authorization",
                                       value: "Bearer ${tempoAccessToken}"
                                   ]]
-                  def timeSheetResponse = sendGetRequest(fetchTomeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}&${refreshTokenTempo}" )
+                  def timeSheetResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}&${refreshTokenTempo}" )
 
                   if(timeSheetResponse){
                       if(timeSheetResponse.status == 200){
                         def timeSheetjson  = readJSON(text: timeSheetResponse.content)
-                        //filter apporoved timesheets
-                        timeSheetjson.results.each { timesheet ->
-                          if(timesheet.status.key == "APPROVED"){
-                              //update actor
-                              // def jiraRequestHeaders = [[
-                              //         name: "Authorization",
-                              //         value: "Bearer ${jiraAccessToken}"
-                              //     ]]
-                              // def timeSheetResponse = sendGetRequest(fetchTomeSheetUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}&${refreshToken-tempo}" )
-
-                              //update user
-
-                              //update reviewer
-
-                              //add worklogs to teams JSON
-                              team.timesheets = timesheet
-
-                          }
-                        }
+                        //filter Approved Timesheets
+                        timeSheetjson.results = timeSheetjson.results.findAll { timesheet ->
+                                                  timesheet.status?.key == 'APPROVED'
+                                                }
+                        team.timesheets = timeSheetjson.results
                       }else{
                       }
                   }
@@ -250,6 +250,34 @@ node('master') {
                 
             }
       }     
+    }
+    stage('FetchUsers'){
+      if(teamResponse){
+        withCredentials([
+              string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
+            ])
+        {
+          println("jira refresh token : ${refreshTokenJira}")
+          mainJSON.teams.each { team ->
+                team.timesheets?.each { timesheet ->
+                  println("Time sheet status : ${timesheet.status}")
+                  //fetch actor details
+                  def actorJSON= organizeUserDetails(timesheet.status.actor.accountId, jiraRefreshBody, refreshTokenJira)
+                  timesheet.status.actor = actorJSON
+
+                  //fetch user details
+                  def userJSON = organizeUserDetails(timesheet.user.accountId, jiraRefreshBody, refreshTokenJira)
+                  timesheet.user = userJSON
+
+                  //fetch reviewer details
+                  def reviewerJSON = organizeUserDetails(timesheet.reviewer.accountId, jiraRefreshBody, refreshTokenJira)
+                  timesheet.reviewer = reviewerJSON
+                }
+          }
+
+        println("Team after user fetch: ${mainJSON}")  
+      }
+      }
     }    
     currentBuild.result = 'SUCCESS'
   } catch (Exception err) {
