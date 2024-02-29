@@ -3,7 +3,6 @@ import groovy.json.*
 import org.jenkinsci.plugins.workflow.support.steps.build.RunWrapper;
 import java.security.SecureRandom;
 import java.Utils.*
-import groovy.json.JsonSlurper
 import groovy.json.JsonOutput;
 
 import jenkins.model.Jenkins
@@ -28,7 +27,7 @@ String jiraCode = 'JIRA_CODE'
 //tokens
 tempoAccessToken = 'HhYhUG2PQoZ3HgrdMDFQqy5Umab3j2iFLlFrhVNROJE-us'
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
-jiraAccessToken = 'eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJiY2FmMTY0MS1hMTE4LTRjZDItOTQ3ZS1mZDZiMDhlYTYyY2IiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkxOTE2MTUsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MTkxNjE1LCJleHAiOjE3MDkxOTUyMTUsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyByZWFkOmppcmEtdXNlciByZWFkOmppcmEtd29yayIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9ydGkiOiIyYzYyY2I3NC1iMzIxLTQxMjUtODc3Yi02ZTkyYTljNzJlY2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsIjoiNTcxYWY3ZWQtOGVmNy00NWQ1LWJmNWMtYTE4ZmRkNjdlODc2QGNvbm5lY3QuYXRsYXNzaWFuLmNvbSIsImNsaWVudF9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL2F0bF90b2tlbl90eXBlIjoiQUNDRVNTIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL2ZpcnN0UGFydHkiOmZhbHNlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudElkIjoiNzEyMDIwOjMzMjQ5MzNkLTI3OWUtNGIxMC04NDhjLTY3YWFlOGEwZDRkMCIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9zZXNzaW9uX2lkIjoiNDAwNmIzZmUtZTAyZC00YjliLWJkZDUtNTE2YjE3OThmN2NiIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vZW1haWxEb21haW4iOiJlbmFjdG9yLmNvLnVrIiwidmVyaWZpZWQiOiJ0cnVlIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Byb2Nlc3NSZWdpb24iOiJ1cy1lYXN0LTEiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcmVmcmVzaF9jaGFpbl9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQLTVlMDA5NTBhNDAwNmVhMGVhMzI2ZDdjYy1kNTRmNzQ5OS0xYWM4LTQzZjEtOWUzNi00ZDQ3OTI0NTM1M2YiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdWp0IjoiNzQ2OTAxZTAtZGZhZi00ZjAwLWI2YWUtM2NhNjBlN2Q0ZGQ4IiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tLzNsbyI6dHJ1ZSwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29yZ0lkIjoiYzZkMDQ5OGYtMjIyNC00OGEzLTgzY2EtMTMzMDViMDA3ZjI5IiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.Ks5ZV91EMXzltT5DhKdmEPPPi5-Jl7tVNumAxkZw3OTnTneuY5bKgwX6SuacST09y7B79SZ9thxAQKFaYH_CCV6pmb-KfKQpsA4xigBgJeYLaEgVjaJMzYHbYnHrjZ6pyWJdUUOxTEIx2bmE_mWFZDPEcV7OhNNDKOhzZbSiz3AlOlsxQP-YraRpROaGfvSOZO8r0i82QdGNSMvoX10aXd1vH6meWLvUzkgwKUuoUkvdwPAS4KVZ0u0l2lAV4yD8ERuch3YT4pQ5dwTkf_i8Qd1kRafy10EciojOESKUVZ_C3RWPz1jlGoZ-7fwdfTW_zIGXYbZf9JDPhe699r4kwA'
+jiraAccessToken = 'yJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJiY2FmMTY0MS1hMTE4LTRjZDItOTQ3ZS1mZDZiMDhlYTYyY2IiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkxOTE2MTUsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MTkxNjE1LCJleHAiOjE3MDkxOTUyMTUsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyByZWFkOmppcmEtdXNlciByZWFkOmppcmEtd29yayIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9ydGkiOiIyYzYyY2I3NC1iMzIxLTQxMjUtODc3Yi02ZTkyYTljNzJlY2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsIjoiNTcxYWY3ZWQtOGVmNy00NWQ1LWJmNWMtYTE4ZmRkNjdlODc2QGNvbm5lY3QuYXRsYXNzaWFuLmNvbSIsImNsaWVudF9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL2F0bF90b2tlbl90eXBlIjoiQUNDRVNTIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL2ZpcnN0UGFydHkiOmZhbHNlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudElkIjoiNzEyMDIwOjMzMjQ5MzNkLTI3OWUtNGIxMC04NDhjLTY3YWFlOGEwZDRkMCIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9zZXNzaW9uX2lkIjoiNDAwNmIzZmUtZTAyZC00YjliLWJkZDUtNTE2YjE3OThmN2NiIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vZW1haWxEb21haW4iOiJlbmFjdG9yLmNvLnVrIiwidmVyaWZpZWQiOiJ0cnVlIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Byb2Nlc3NSZWdpb24iOiJ1cy1lYXN0LTEiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcmVmcmVzaF9jaGFpbl9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQLTVlMDA5NTBhNDAwNmVhMGVhMzI2ZDdjYy1kNTRmNzQ5OS0xYWM4LTQzZjEtOWUzNi00ZDQ3OTI0NTM1M2YiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdWp0IjoiNzQ2OTAxZTAtZGZhZi00ZjAwLWI2YWUtM2NhNjBlN2Q0ZGQ4IiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tLzNsbyI6dHJ1ZSwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29yZ0lkIjoiYzZkMDQ5OGYtMjIyNC00OGEzLTgzY2EtMTMzMDViMDA3ZjI5IiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3ZlcmlmaWVkIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.Ks5ZV91EMXzltT5DhKdmEPPPi5-Jl7tVNumAxkZw3OTnTneuY5bKgwX6SuacST09y7B79SZ9thxAQKFaYH_CCV6pmb-KfKQpsA4xigBgJeYLaEgVjaJMzYHbYnHrjZ6pyWJdUUOxTEIx2bmE_mWFZDPEcV7OhNNDKOhzZbSiz3AlOlsxQP-YraRpROaGfvSOZO8r0i82QdGNSMvoX10aXd1vH6meWLvUzkgwKUuoUkvdwPAS4KVZ0u0l2lAV4yD8ERuch3YT4pQ5dwTkf_i8Qd1kRafy10EciojOESKUVZ_C3RWPz1jlGoZ-7fwdfTW_zIGXYbZf9JDPhe699r4kwA'
 jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
 
 Map stagesMap
@@ -74,7 +73,7 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
           def jsonResponse = readJSON text: jiraTokenPayload.content
           jiraAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
-          updateTokens(refreshTokent, jiraRefreshToken)
+          updateTokens(refreshToken, jiraRefreshToken)
 
           //update header with new access token
           header.each { data ->
@@ -106,7 +105,7 @@ def sendPostRequest( url, payload, header, contentType) {
 }
 
 def refreshTokens (url, payload){
-  println("refrsh token method")
+  println("refrsh token method: ${payload}")
   def response = httpRequest acceptType: 'APPLICATION_JSON',
                     contentType: 'APPLICATION_FORM',
                     customHeaders: [[
@@ -166,11 +165,30 @@ def organizeUserDetails(userId, refreshBody, refreshToken){
            name: "Authorization",
            value: "Bearer ${jiraAccessToken}"
        ]]
-   def userResponse = sendGetRequest("${userBaseUrl}${userId}", jiraActorRequestHeaders, "JIRA", "${refreshBody}&${refreshToken}" )
+   def userResponse = sendGetRequest("${userBaseUrl}${userId}", jiraActorRequestHeaders, "JIRA", "${refreshBody}${refreshToken}" )
    println("user detals: ${userResponse.content}")
 
    def userJson  = readJSON(text: userResponse.content)
    return userJson
+}
+
+def writeResponseToCSV(mainJSON) {
+    def csvContent = new StringBuilder()
+    
+    // Add title to CSV content
+    csvContent.append("Work LOG ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, TEAM\n")
+
+    // Iterate over results and append to CSV content
+    mainJSON.teams.each { team ->
+        team.timesheets?.each { timesheet ->
+          timesheet.worklogs?.each{worklog ->
+            csvContent.append("${worklog.tempoWorklogId},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${team.name}\n")
+          }         
+        }
+    }
+    // Write content to CSV file
+    writeFile file: "timeSheet.csv", text: csvContent.toString()
+    archiveArtifacts 'timeSheet.csv'
 }
 
 node('master') {
@@ -199,7 +217,7 @@ node('master') {
                                   name: "Authorization",
                                   value: "Bearer ${tempoAccessToken}"
                               ]]
-        teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}&${refreshTokenTempo}" )
+        teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
 
       }
     }
@@ -232,7 +250,7 @@ node('master') {
                                       name: "Authorization",
                                       value: "Bearer ${tempoAccessToken}"
                                   ]]
-                  def timeSheetResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}&${refreshTokenTempo}" )
+                  def timeSheetResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
 
                   if(timeSheetResponse){
                       if(timeSheetResponse.status == 200){
@@ -245,8 +263,7 @@ node('master') {
                       }else{
                       }
                   }
-                } 
-                println("Team JSON: ${mainJSON}")              
+                }          
                 
             }
       }     
@@ -257,7 +274,6 @@ node('master') {
               string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
             ])
         {
-          println("jira refresh token : ${refreshTokenJira}")
           mainJSON.teams.each { team ->
                 team.timesheets?.each { timesheet ->
                   println("Time sheet status : ${timesheet.status}")
@@ -274,10 +290,47 @@ node('master') {
                   timesheet.reviewer = reviewerJSON
                 }
           }
+  
+      }
+      }
+    }
 
-        println("Team after user fetch: ${mainJSON}")  
+    stage('FetchWorklogs'){
+      if(teamResponse){
+        withCredentials([
+              string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
+            ])
+        {
+          mainJSON.teams.each { team ->
+                team.timesheets?.each { timesheet ->
+                  String workLogUrl = timesheet.worklogs.self
+
+                  def requestHeaders = [[
+                                      name: "Authorization",
+                                      value: "Bearer ${tempoAccessToken}"
+                                  ]]
+                  def worLogResponse = sendGetRequest(workLogUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
+                  if(worLogResponse){
+                      if(worLogResponse.status == 200){
+                        println("worklog: ${worLogResponse.content}")
+                        def workLogjson  = readJSON(text: worLogResponse.content)
+                        timesheet.worklogs = workLogjson.results
+                      }else{
+                      }
+                  }
+                  
+                }
+          }
+        def finalJSON = JsonOutput.prettyPrint(mainJSON.toString())
+        println("after worklogs fetch: ${finalJSON}")  
       }
       }
+    }
+    stage('WriteToCSV') {
+         if (teamResponse) {
+             writeResponseToCSV(mainJSON)
+             println "Timesheet data written to CSV file"
+         }
     }    
     currentBuild.result = 'SUCCESS'
   } catch (Exception err) {
