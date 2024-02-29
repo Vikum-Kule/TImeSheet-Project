@@ -176,14 +176,14 @@ def writeResponseToCSV(mainJSON) {
     def csvContent = new StringBuilder()
     
     // Add title to CSV content
-    csvContent.append("Work LOG ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, ATTRIBUTES, STATUS, REVIEWER, TEAM \n")
+    csvContent.append("Work LOG ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, TEAM \n")
 
     // Iterate over results and append to CSV content
     mainJSON.teams.each { team ->
         team.timesheets?.each { timesheet ->
           timesheet.worklogs?.each{worklog ->
 
-            csvContent.append("${worklog.tempoWorklogId},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${worklog.attributes.values},${timesheet.status.key},${timesheet.reviewer.displayName},${team.name}\n")
+            csvContent.append("${worklog.tempoWorklogId},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${team.name}\n")
           }         
         }
     }
