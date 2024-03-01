@@ -6,7 +6,7 @@ import java.Utils.*
 import groovy.json.JsonOutput;
 import java.text.SimpleDateFormat
 import java.util.Calendar
-
+import java.util.TimeZone
 import jenkins.model.Jenkins
 import com.cloudbees.plugins.credentials.*
 import com.cloudbees.plugins.credentials.common.*
@@ -178,7 +178,7 @@ def writeResponseToCSV(mainJSON) {
     def csvContent = new StringBuilder()
     
     // Add title to CSV content
-    csvContent.append("Work LOG ID, ISSUE ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, USER, ATTRIBUTE, TEAM \n")
+    csvContent.append("WORK LOG ID, ISSUE ID, BILLABLE SECONDS,START DATE, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, USER, ACCOUNT KEY, TEAM \n")
 
     // Iterate over results and append to CSV content
     mainJSON.teams.each { team ->
@@ -190,7 +190,7 @@ def writeResponseToCSV(mainJSON) {
                 attributeVal = attribute.value 
               }
             }
-            csvContent.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${timesheet.user.displayName},${attributeVal},${team.name}\n")
+            csvContent.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.startDate},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${timesheet.user.displayName},${attributeVal},${team.name}\n")
           }         
         }
     }
@@ -252,47 +252,74 @@ node('master') {
                    //fetched projectId and projectNames
                   println "Team ID: $teamId, team Name: $teamName"
 
-                  // Calculate last Monday and last Sunday
-                  Calendar cal = Calendar.getInstance()
-                  int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
-                  int daysToLastSunday = Calendar.SUNDAY - dayOfWeek
+                  //define timesheet feild
+                  team.timesheets = []
 
-                  if (daysToLastSunday == 0) {
-                      daysToLastSunday = -7 // Last week Sunday
+                  // Calculate last Monday
+                  Calendar cal = Calendar.getInstance()
+                  //calculate last monday of the week
+                  int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                  int daysToLastMonday = Calendar.MONDAY - dayOfWeek
+                  
+                  if (daysToLastMonday == 0) {
+                      // Last week Monday
+                      daysToLastMonday = -7 
                   }
                   
-                  cal.add(Calendar.DAY_OF_YEAR, daysToLastSunday)
-                  Date lastSunday = cal.getTime()
-                  cal.add(Calendar.DAY_OF_YEAR, -6)
+                  cal.add(Calendar.DAY_OF_YEAR, daysToLastMonday)
                   Date lastMonday = cal.getTime()
+                  
+                  cal.add(Calendar.DAY_OF_YEAR, 6)
+                  Date lastSunday = cal.getTime()
 
                   // Format dates
                   SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
-                  String startDate = sdf.format(lastMonday)
-                  String endDate = sdf.format(lastSunday)
-
-                  println("startDate : ${startDate} and EndDate : ${endDate}")
                   
+                  //run loop to fetch last 8weeks(2months) timesheets
+                  String startDate
+                  String endDate
+                  for(int i = 0; i < 8; i++) {
+                    if(i==0){
+                      startDate = sdf.format(lastMonday)
+                      endDate = sdf.format(lastSunday)
+                    }else{
+                      // Now, calculate the previous Monday and Sunday based on lastMonday
+                      cal.setTime(lastMonday) // Set calendar to last Monday
+                      cal.add(Calendar.DAY_OF_YEAR, -7) // Go back one more week for previous Monday
+                      Date previousMonday = cal.getTime()
+                      cal.add(Calendar.DAY_OF_YEAR, 6) // Add 6 days to get to previous Sunday
+                      Date previousSunday = cal.getTime()
 
-                  // String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=${startDate}&to=${endDate}"
-                  String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=2024-02-26&to=2024-03-03"
+                      startDate = sdf.format(previousMonday)
+                      endDate = sdf.format(previousSunday)
+                      lastMonday = previousMonday
 
-                  def requestHeaders = [[
-                                      name: "Authorization",
-                                      value: "Bearer ${tempoAccessToken}"
-                                  ]]
-                  def timeSheetResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
+                    }
+                    
+                    println("startDate : ${startDate} and EndDate : ${endDate}")
+                    String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=${startDate}&to=${endDate}"
 
-                  if(timeSheetResponse){
-                      if(timeSheetResponse.status == 200){
-                        def timeSheetjson  = readJSON(text: timeSheetResponse.content)
-                        //filter Approved Timesheets
-                        timeSheetjson.results = timeSheetjson.results.findAll { timesheet ->
-                                                  timesheet.status?.key == 'APPROVED'
-                                                }
-                        team.timesheets = timeSheetjson.results
-                      }else{
-                      }
+                    def requestHeaders = [[
+                                        name: "Authorization",
+                                        value: "Bearer ${tempoAccessToken}"
+                                    ]]
+                    def timeSheetResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
+
+                    if(timeSheetResponse){
+                        if(timeSheetResponse.status == 200){
+                          def timeSheetjson  = readJSON(text: timeSheetResponse.content)
+                          //filter Approved Timesheets
+                          timeSheetjson.results = timeSheetjson.results.findAll { timesheet ->
+                                                    timesheet.status?.key == 'APPROVED'
+                                                  }
+                          println("timeSheet results: ${timeSheetjson.results}")
+                          if(!timeSheetjson.results.isEmpty()){
+                            team.timesheets.addAll(timeSheetjson.results)
+                          }
+                        }else{
+                        }
+                    } 
+
                   }
                 }          
                 
@@ -332,6 +359,22 @@ node('master') {
               string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
             ])
         {
+          // Get current date/time
+          Calendar cal = Calendar.getInstance()
+
+          // Subtract one day to get yesterday
+          cal.add(Calendar.DAY_OF_MONTH, -1)
+
+          // Set timezone to UTC for formatting
+          TimeZone tz = TimeZone.getTimeZone("UTC")
+          SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
+          sdf.setTimeZone(tz) // Set the timezone to UTC
+
+          // Format yesterday's date
+          // String yesterdayDate = sdf.format(cal.getTime())
+          String yesterdayDate = "2024-03-01"
+          println("yesterdate")
+
           mainJSON.teams.each { team ->
                 team.timesheets?.each { timesheet ->
                   String workLogUrl = timesheet.worklogs.self
@@ -343,13 +386,27 @@ node('master') {
                   def worLogResponse = sendGetRequest(workLogUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
                   if(worLogResponse){
                       if(worLogResponse.status == 200){
-                        println("worklog: ${worLogResponse.content}")
                         def workLogjson  = readJSON(text: worLogResponse.content)
+                        //filetr worklogs within yesterday
+                        workLogjson.results = workLogjson.results.findAll{ workLog ->
+                              String createdDate = workLog.createdAt
+                              String updatedDate = workLog.updatedAt
+
+                              def dateOfCreatedDate = createdDate.split("T")[0]
+                              def dateOfUpdatedDate = updatedDate.split("T")[0]
+
+                              (dateOfCreatedDate == yesterdayDate || dateOfUpdatedDate == yesterdayDate)
+                              }
                         timesheet.worklogs = workLogjson.results
                       }else{
                       }
                   }
                   
+                }
+                if(team.timesheets){
+                  team.timesheets = team.timesheets.findAll{ timesheet ->
+                    !timesheet.worklogs.isEmpty()
+                  }
                 }
           }
       }
@@ -372,7 +429,6 @@ node('master') {
                             value: "Bearer ${jiraAccessToken}"
                         ]]
                     def issueResponse = sendGetRequest(issueUrl, jiraRequestHeaders, "JIRA", "${jiraRefreshBody}${refreshTokenJira}" )
-                    println("issue detals: ${issueResponse.content}")
 
                     def issueJson  = readJSON(text: issueResponse.content)
                     worklog.issue.key = issueJson.key
@@ -381,6 +437,7 @@ node('master') {
                   }
                 } 
           }
+            def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
         }
       }
     }
