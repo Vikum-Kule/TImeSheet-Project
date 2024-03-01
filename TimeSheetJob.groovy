@@ -4,6 +4,8 @@ import org.jenkinsci.plugins.workflow.support.steps.build.RunWrapper;
 import java.security.SecureRandom;
 import java.Utils.*
 import groovy.json.JsonOutput;
+import java.text.SimpleDateFormat
+import java.util.Calendar
 
 import jenkins.model.Jenkins
 import com.cloudbees.plugins.credentials.*
@@ -27,7 +29,7 @@ String jiraCode = 'JIRA_CODE'
 //tokens
 tempoAccessToken = 'HhYhUG2PQoZ3HgrdMDFQqy5Umab3j2iFLlFrhVNROJE-us'
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
-jiraAccessToken = 'eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJlOGQ4MDBlMi1iYTBjLTRkN2UtOTkxNy04YjBmZWUzYWM1ZWQiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkxOTg0NjYsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MTk4NDY2LCJleHAiOjE3MDkyMDIwNjYsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwic2NvcGUiOiJvZmZsaW5lX2FjY2VzcyByZWFkOmppcmEtdXNlciByZWFkOmppcmEtd29yayIsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9zeXN0ZW1BY2NvdW50RW1haWwiOiI1NzFhZjdlZC04ZWY3LTQ1ZDUtYmY1Yy1hMThmZGQ2N2U4NzZAY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiY2xpZW50X2lkIjoiMDFXd2xKRE9NdnE3ZEFMaWZmV0tPMFVMUDhTTU9wSVAiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vYXRsX3Rva2VuX3R5cGUiOiJBQ0NFU1MiLCJodHRwczovL2F0bGFzc2lhbi5jb20vZmlyc3RQYXJ0eSI6ZmFsc2UsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9zeXN0ZW1BY2NvdW50SWQiOiI3MTIwMjA6MzMyNDkzM2QtMjc5ZS00YjEwLTg0OGMtNjdhYWU4YTBkNGQwIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Nlc3Npb25faWQiOiI0MDA2YjNmZS1lMDJkLTRiOWItYmRkNS01MTZiMTc5OGY3Y2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9lbWFpbERvbWFpbiI6ImVuYWN0b3IuY28udWsiLCJ2ZXJpZmllZCI6InRydWUiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcHJvY2Vzc1JlZ2lvbiI6InVzLWVhc3QtMSIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9yZWZyZXNoX2NoYWluX2lkIjoiMDFXd2xKRE9NdnE3ZEFMaWZmV0tPMFVMUDhTTU9wSVAtNWUwMDk1MGE0MDA2ZWEwZWEzMjZkN2NjLWQ1NGY3NDk5LTFhYzgtNDNmMS05ZTM2LTRkNDc5MjQ1MzUzZiIsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS91anQiOiI3NDY5MDFlMC1kZmFmLTRmMDAtYjZhZS0zY2E2MGU3ZDRkZDgiLCJodHRwczovL2F0bGFzc2lhbi5jb20vM2xvIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vb3JnSWQiOiJjNmQwNDk4Zi0yMjI0LTQ4YTMtODNjYS0xMzMwNWIwMDdmMjkiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS9ydGkiOiI3OTA5ZTVkYi02ZmNkLTQxMDctYjEwNS05ZjNhMjA3ODRiYjgiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.Crs1j0tij4esWBYEKPVvpFX85CjLWO0AfSzeWwrQYc1hHbWyIdXdci7h-OmMxiSNWLPswOH6xnJWRr0OYvdWqJjuhWo2SOO61qd6Gj_8vWsEwJcYYW_ouJ_ZhDSfHvoXOPW25F61s_OCrQOQgM6AOJ6K6_8p35oF0okNtt0pSR7wEBUU9zfck73vQuw2v7Ne9Ykv9BSkvvIYfL1ulnRIwKeUjPMGY7-ttwzHH4-UNdCtFQdm1GxuRjsLkboK_oI7LExRnXImYhLUmfSxU5lVM5uMSXrh9YQmARK2gVJwVVSFp1lDh7ARlNU9cN67pLSCy0NcQpYVGbFeFw28hsdqkw'
+jiraAccessToken = 'eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJlYzE5YmE5NC04YzQ4LTQ2NzctOGJlMC1jYjkxYmFmOWYyZDAiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkyNjUwMjQsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MjY1MDI0LCJleHAiOjE3MDkyNjg2MjQsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3N5c3RlbUFjY291bnRFbWFpbCI6IjU3MWFmN2VkLThlZjctNDVkNS1iZjVjLWExOGZkZDY3ZTg3NkBjb25uZWN0LmF0bGFzc2lhbi5jb20iLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcnRpIjoiMmQzNGQzZWUtNTY1Ny00YjdiLWE2ZGUtYWYxNWM1MzZjNzdlIiwiY2xpZW50X2lkIjoiMDFXd2xKRE9NdnE3ZEFMaWZmV0tPMFVMUDhTTU9wSVAiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcmVmcmVzaF9jaGFpbl9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQLTVlMDA5NTBhNDAwNmVhMGVhMzI2ZDdjYy1lYThlMGI2Zi00MDRjLTQ1ZmMtYmRiOC1iM2IxODVhN2UyYWQiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vYXRsX3Rva2VuX3R5cGUiOiJBQ0NFU1MiLCJodHRwczovL2F0bGFzc2lhbi5jb20vZmlyc3RQYXJ0eSI6ZmFsc2UsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9zeXN0ZW1BY2NvdW50SWQiOiI3MTIwMjA6MzMyNDkzM2QtMjc5ZS00YjEwLTg0OGMtNjdhYWU4YTBkNGQwIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Nlc3Npb25faWQiOiI0MDA2YjNmZS1lMDJkLTRiOWItYmRkNS01MTZiMTc5OGY3Y2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9lbWFpbERvbWFpbiI6ImVuYWN0b3IuY28udWsiLCJzY29wZSI6InJlYWQ6amlyYS13b3JrIG9mZmxpbmVfYWNjZXNzIHJlYWQ6amlyYS11c2VyIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Byb2Nlc3NSZWdpb24iOiJ1cy1lYXN0LTEiLCJodHRwczovL2F0bGFzc2lhbi5jb20vM2xvIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vb3JnSWQiOiJjNmQwNDk4Zi0yMjI0LTQ4YTMtODNjYS0xMzMwNWIwMDdmMjkiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS91anQiOiJmMmU4MzIwNy0wNjIxLTQwMDMtYTY1ZC02YTMwMDg3MTgwMTkiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.cOs3yClNNczIThbV9V7OAtAYR-9UI24QiUdvs9QMmVVvBViVY1fpNPNp_ZQsbpTt8O8HgmCQlc74ooFPC6hg79RXW9PR3w20kWjaoiTUFy_bUHeaep9MJuzuG2-mbfmrfWHDKSxs03o6e_R4Lqnh1FfUVItEzeS_hOfprLLnfIfnUUQ70MArI6UxqKI-N23BYqS3CuCdeMsv7Y7JcvoyBr9fh03Y5z5M1ixIRMEZEMc8hctfet_hAlSaZLU9H8atuDkuswxEdtEu9DKPfdoQTf8nVLMIW3QGEsjBqgMjwNIZUaDDMkA2WQBWPJimn6Am5GHgFcgIQbYVbZms2_8l6A'
 jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
 
 Map stagesMap
@@ -52,7 +54,7 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
     if (response.status == 401){
       if (platform == "TEMPO"){
           String tempoRefreshUrl = 'https://api.tempo.io/oauth/token/?grant_type=&client_id=&client_secret=&refresh_token'
-          // def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
+          def tempoTokenPayload = refreshTokens(tempoRefreshUrl, refreshTokenPayload)
           // save on disk
           def jsonResponse = readJSON text: tempoTokenPayload.content
           tempoAccessToken = jsonResponse.access_token
@@ -176,14 +178,19 @@ def writeResponseToCSV(mainJSON) {
     def csvContent = new StringBuilder()
     
     // Add title to CSV content
-    csvContent.append("Work LOG ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, TEAM \n")
+    csvContent.append("Work LOG ID, ISSUE ID, BILLABLE SECOND, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, USER, ATTRIBUTE, TEAM \n")
 
     // Iterate over results and append to CSV content
     mainJSON.teams.each { team ->
         team.timesheets?.each { timesheet ->
           timesheet.worklogs?.each{worklog ->
-
-            csvContent.append("${worklog.tempoWorklogId},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${team.name}\n")
+            def attributeVal = '-'
+            worklog.attributes.values?.each{attribute ->
+              if(attribute.key == '_TempoAccount_'){
+                attributeVal = attribute.value 
+              }
+            }
+            csvContent.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${timesheet.user.displayName},${attributeVal},${team.name}\n")
           }         
         }
     }
@@ -245,6 +252,29 @@ node('master') {
                    //fetched projectId and projectNames
                   println "Team ID: $teamId, team Name: $teamName"
 
+                  // Calculate last Monday and last Sunday
+                  Calendar cal = Calendar.getInstance()
+                  int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+                  int daysToLastSunday = Calendar.SUNDAY - dayOfWeek
+
+                  if (daysToLastSunday == 0) {
+                      daysToLastSunday = -7 // Last week Sunday
+                  }
+                  
+                  cal.add(Calendar.DAY_OF_YEAR, daysToLastSunday)
+                  Date lastSunday = cal.getTime()
+                  cal.add(Calendar.DAY_OF_YEAR, -6)
+                  Date lastMonday = cal.getTime()
+
+                  // Format dates
+                  SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
+                  String startDate = sdf.format(lastMonday)
+                  String endDate = sdf.format(lastSunday)
+
+                  println("startDate : ${startDate} and EndDate : ${endDate}")
+                  
+
+                  // String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=${startDate}&to=${endDate}"
                   String fetchTimeSheetUrl = "https://api.tempo.io/4/timesheet-approvals/team/${teamId}?from=2024-02-26&to=2024-03-03"
 
                   def requestHeaders = [[
@@ -322,13 +352,43 @@ node('master') {
                   
                 }
           }
-        def finalJSON = JsonOutput.prettyPrint(mainJSON.toString())
-        println("after worklogs fetch: ${finalJSON}")  
       }
       }
     }
+
+    stage('FetchJiraTickets'){
+      if(teamResponse){
+        withCredentials([
+              string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
+            ])
+        {
+          mainJSON.teams.each { team ->
+                team.timesheets?.each { timesheet ->
+                  timesheet.worklogs?.each{worklog ->
+                    def issueUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/issue/${worklog.issue.id}"
+
+                    def jiraRequestHeaders = [[
+                            name: "Authorization",
+                            value: "Bearer ${jiraAccessToken}"
+                        ]]
+                    def issueResponse = sendGetRequest(issueUrl, jiraRequestHeaders, "JIRA", "${jiraRefreshBody}${refreshTokenJira}" )
+                    println("issue detals: ${issueResponse.content}")
+
+                    def issueJson  = readJSON(text: issueResponse.content)
+                    worklog.issue.key = issueJson.key
+                    worklog.issue.summery = issueJson.fields.summary 
+        
+                  }
+                } 
+          }
+        }
+      }
+    }
+
     stage('WriteToCSV') {
          if (teamResponse) {
+            def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
+             println("final result: ${finalJson}")
              writeResponseToCSV(mainJSON)
              println "Timesheet data written to CSV file"
          }
