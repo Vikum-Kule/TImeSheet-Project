@@ -27,9 +27,9 @@ String jiraClientSecret = 'JIRA_CLIENT_SECRET'
 String jiraCode = 'JIRA_CODE' 
 
 //tokens
-tempoAccessToken = 'HhYhUG2PQoZ3HgrdMDFQqy5Umab3j2iFLlFrhVNROJE-us'
+tempoAccessToken = null
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
-jiraAccessToken = 'eyJraWQiOiJhdXRoLmF0bGFzc2lhbi5jb20tQUNDRVNTLWE5Njg0YTZlLTY4MjctNGQ1Yi05MzhjLWJkOTZjYzBiOTk0ZCIsImFsZyI6IlJTMjU2In0.eyJqdGkiOiJlYzE5YmE5NC04YzQ4LTQ2NzctOGJlMC1jYjkxYmFmOWYyZDAiLCJzdWIiOiI1ZTAwOTUwYTQwMDZlYTBlYTMyNmQ3Y2MiLCJuYmYiOjE3MDkyNjUwMjQsImlzcyI6Imh0dHBzOi8vYXV0aC5hdGxhc3NpYW4uY29tIiwiaWF0IjoxNzA5MjY1MDI0LCJleHAiOjE3MDkyNjg2MjQsImF1ZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL3N5c3RlbUFjY291bnRFbWFpbCI6IjU3MWFmN2VkLThlZjctNDVkNS1iZjVjLWExOGZkZDY3ZTg3NkBjb25uZWN0LmF0bGFzc2lhbi5jb20iLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcnRpIjoiMmQzNGQzZWUtNTY1Ny00YjdiLWE2ZGUtYWYxNWM1MzZjNzdlIiwiY2xpZW50X2lkIjoiMDFXd2xKRE9NdnE3ZEFMaWZmV0tPMFVMUDhTTU9wSVAiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vcmVmcmVzaF9jaGFpbl9pZCI6IjAxV3dsSkRPTXZxN2RBTGlmZldLTzBVTFA4U01PcElQLTVlMDA5NTBhNDAwNmVhMGVhMzI2ZDdjYy1lYThlMGI2Zi00MDRjLTQ1ZmMtYmRiOC1iM2IxODVhN2UyYWQiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vYXRsX3Rva2VuX3R5cGUiOiJBQ0NFU1MiLCJodHRwczovL2F0bGFzc2lhbi5jb20vZmlyc3RQYXJ0eSI6ZmFsc2UsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9zeXN0ZW1BY2NvdW50SWQiOiI3MTIwMjA6MzMyNDkzM2QtMjc5ZS00YjEwLTg0OGMtNjdhYWU4YTBkNGQwIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Nlc3Npb25faWQiOiI0MDA2YjNmZS1lMDJkLTRiOWItYmRkNS01MTZiMTc5OGY3Y2IiLCJodHRwczovL2F0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vYXRsYXNzaWFuLmNvbS9lbWFpbERvbWFpbiI6ImVuYWN0b3IuY28udWsiLCJzY29wZSI6InJlYWQ6amlyYS13b3JrIG9mZmxpbmVfYWNjZXNzIHJlYWQ6amlyYS11c2VyIiwiaHR0cHM6Ly9pZC5hdGxhc3NpYW4uY29tL3Byb2Nlc3NSZWdpb24iOiJ1cy1lYXN0LTEiLCJodHRwczovL2F0bGFzc2lhbi5jb20vM2xvIjp0cnVlLCJodHRwczovL2F0bGFzc2lhbi5jb20vb3JnSWQiOiJjNmQwNDk4Zi0yMjI0LTQ4YTMtODNjYS0xMzMwNWIwMDdmMjkiLCJodHRwczovL2lkLmF0bGFzc2lhbi5jb20vdmVyaWZpZWQiOnRydWUsImh0dHBzOi8vaWQuYXRsYXNzaWFuLmNvbS91anQiOiJmMmU4MzIwNy0wNjIxLTQwMDMtYTY1ZC02YTMwMDg3MTgwMTkiLCJodHRwczovL2F0bGFzc2lhbi5jb20vc3lzdGVtQWNjb3VudEVtYWlsRG9tYWluIjoiY29ubmVjdC5hdGxhc3NpYW4uY29tIiwiaHR0cHM6Ly9hdGxhc3NpYW4uY29tL29hdXRoQ2xpZW50SWQiOiIwMVd3bEpET012cTdkQUxpZmZXS08wVUxQOFNNT3BJUCJ9.cOs3yClNNczIThbV9V7OAtAYR-9UI24QiUdvs9QMmVVvBViVY1fpNPNp_ZQsbpTt8O8HgmCQlc74ooFPC6hg79RXW9PR3w20kWjaoiTUFy_bUHeaep9MJuzuG2-mbfmrfWHDKSxs03o6e_R4Lqnh1FfUVItEzeS_hOfprLLnfIfnUUQ70MArI6UxqKI-N23BYqS3CuCdeMsv7Y7JcvoyBr9fh03Y5z5M1ixIRMEZEMc8hctfet_hAlSaZLU9H8atuDkuswxEdtEu9DKPfdoQTf8nVLMIW3QGEsjBqgMjwNIZUaDDMkA2WQBWPJimn6Am5GHgFcgIQbYVbZms2_8l6A'
+jiraAccessToken = null
 jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
 
 Map stagesMap
@@ -107,7 +107,6 @@ def sendPostRequest( url, payload, header, contentType) {
 }
 
 def refreshTokens (url, payload){
-  println("refrsh token method: ${payload}")
   def response = httpRequest acceptType: 'APPLICATION_JSON',
                     contentType: 'APPLICATION_FORM',
                     customHeaders: [[
@@ -168,7 +167,6 @@ def organizeUserDetails(userId, refreshBody, refreshToken){
            value: "Bearer ${jiraAccessToken}"
        ]]
    def userResponse = sendGetRequest("${userBaseUrl}${userId}", jiraActorRequestHeaders, "JIRA", "${refreshBody}${refreshToken}" )
-   println("user detals: ${userResponse.content}")
 
    def userJson  = readJSON(text: userResponse.content)
    return userJson
@@ -334,7 +332,6 @@ node('master') {
         {
           mainJSON.teams.each { team ->
                 team.timesheets?.each { timesheet ->
-                  println("Time sheet status : ${timesheet.status}")
                   //fetch actor details
                   def actorJSON= organizeUserDetails(timesheet.status.actor.accountId, jiraRefreshBody, refreshTokenJira)
                   timesheet.status.actor = actorJSON
