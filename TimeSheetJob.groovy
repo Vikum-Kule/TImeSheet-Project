@@ -25,12 +25,16 @@ String tempoCode = 'TEMPO_CODE'
 String jiraClientId = 'JIRA_CLIENT_ID'
 String jiraClientSecret = 'JIRA_CLIENT_SECRET'
 String jiraCode = 'JIRA_CODE' 
+String xeroClientId = 'XERO_CLIENT_ID'
+String xeroClientSecret = 'XERO_CLIENT_SECRET'
 
 //tokens
 tempoAccessToken = null
 tempoRefreshToken = 'TEMPO_REFRESH_TOKEN'
 jiraAccessToken = null
 jiraRefreshToken = 'JIRA_REFRESH_TOKEN' 
+xeroAccessToken = null
+xeroRefreshToken = 'XERO_REFRESH_TOKEN'
 
 Map stagesMap
 String workspacePath
@@ -43,6 +47,7 @@ mainJSON = null
 
 String tempoRefreshBody
 String jiraRefreshBody
+String xeroRefreshBody
 
 
 def sendGetRequest(url, header, platform, refreshTokenPayload) {
@@ -81,6 +86,23 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
           header.each { data ->
               if (data.name == "Authorization") {
                   data.value = "Bearer ${jiraAccessToken}"
+              }
+          }
+          sendGetRequest(url, header, platform, refreshTokenPayload)
+
+      }else if(platform == "XERO"){
+          String xeroRefreshUrl = 'https://identity.xero.com/connect/token?='
+          def xeroTokenPayload = refreshTokens(xeroRefreshUrl, refreshTokenPayload)
+          // save on disk
+          def jsonResponse = readJSON text: xeroTokenPayload.content
+          xeroAccessToken = jsonResponse.access_token
+          def refreshToken = jsonResponse.refresh_token
+          updateTokens(refreshToken, xeroRefreshToken)
+
+          //update header with new access token
+          header.each { data ->
+              if (data.name == "Authorization") {
+                  data.value = "Bearer ${xeroAccessToken}"
               }
           }
           sendGetRequest(url, header, platform, refreshTokenPayload)
@@ -206,12 +228,14 @@ node('master') {
             string(credentialsId: tempoClientSecret, variable: 'clientSecretTempo'),
             string(credentialsId: jiraClientId, variable: 'clientIdJira'),
             string(credentialsId: jiraClientSecret, variable: 'clientSecretJira'),
-            string(credentialsId: jiraCode, variable: 'codeJira')
+            string(credentialsId: jiraCode, variable: 'codeJira'),
+            string(credentialsId: xeroClientId, variable: 'clientIdXero'),
+            string(credentialsId: xeroClientSecret, variable: 'clientSecretXero')
       ]){
         //prepare payload for refresh tokens
         tempoRefreshBody = "grant_type=refresh_token&client_id=${clientIdTempo}&client_secret=${clientSecretTempo}&redirect_uri=https://enactor.co/&refresh_token="
         jiraRefreshBody = "grant_type=refresh_token&client_id=${clientIdJira}&client_secret=${clientSecretJira}&code=${codeJira}&redirect_uri=https://enactor.co/&refresh_token="
-
+        xeroRefreshBody = "grant_type=refresh_token&client_id=${clientIdXero}&client_secret=${clientSecretXero}&refresh_token="
       }
     }
     stage('GetAllTeams'){
@@ -219,29 +243,53 @@ node('master') {
       withCredentials([
             string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
       ]){
-        def requestHeaders = [[
+
+        def isNextAvailable = true;
+        def offset = 0
+        
+        while(isNextAvailable){
+          def requestHeaders = [[
                                   name: "Authorization",
                                   value: "Bearer ${tempoAccessToken}"
                               ]]
-        teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
+          teamResponse = sendGetRequest("${fetchTeamUrl}?offset=${offset}&limit=2", requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
+          if(teamResponse.status == 200){
+            //append fetch teams to existing teams
+            def teamJSON = readJSON(text: teamResponse.content)
+            if(mainJSON == null){
+              mainJSON = teamJSON
+              //rename feilds
+              mainJSON.teams = mainJSON.results
+              mainJSON.remove('results')
+            }else{
+              mainJSON.teams.addAll(teamJSON.results)
+            }
+
+            // if available next url
+            if(teamJSON.metadata.next){
+              offset++
+            }else{
+              isNextAvailable= false
+            } 
+          }
+          else{
+           isNextAvailable= false 
+          }
+        }
 
       }
     }
 
     stage('FetchTimeSheets'){
-      if(teamResponse){
+      if(!mainJSON.teams.isEmpty()){
           withCredentials([
               string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo'),
               string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
             ]){
-                mainJSON  = readJSON(text: teamResponse.content)
+                // mainJSON  = readJSON(text: teamResponse.content)
                 //remove properties that are not needed
                 mainJSON.remove('self')
                 mainJSON.remove('metadata')
-
-                //rename feilds
-                mainJSON.teams = mainJSON.results
-                mainJSON.remove('results')
 
                 mainJSON.teams.each { team ->
                   def teamId = team.id
@@ -325,7 +373,7 @@ node('master') {
       }     
     }
     stage('FetchUsers'){
-      if(teamResponse){
+      if(!mainJSON.teams.isEmpty()){
         withCredentials([
               string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
             ])
@@ -351,7 +399,7 @@ node('master') {
     }
 
     stage('FetchWorklogs'){
-      if(teamResponse){
+      if(!mainJSON.teams.isEmpty()){
         withCredentials([
               string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
             ])
@@ -411,7 +459,7 @@ node('master') {
     }
 
     stage('FetchJiraTickets'){
-      if(teamResponse){
+      if(!mainJSON.teams.isEmpty()){
         withCredentials([
               string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
             ])
@@ -439,8 +487,83 @@ node('master') {
       }
     }
 
+    stage('Update Invoices'){
+        withCredentials([
+              string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
+            ])
+        {
+          mainJSON.teams.each { team ->
+                team.timesheets?.each { timesheet ->
+                  timesheet.worklogs?.each{worklog ->
+                    def invoiceStructure = '''
+                                {
+                                  "Type": "ACCREC",
+                                  "Contact": {
+                                    "ContactID": "bc749faf-9fb1-4a3a-8431-98f2fcfc4b8e"
+                                  },
+                                  "DueDateString": "",
+                                  "Reference": "",
+                                  "Status": "DRAFT",
+                                  "LineAmountTypes": "Inclusive",
+                                  "LineItems": [
+                                    {
+                                      "ItemCode": "sd",
+                                      "Description": "Senior Developer",
+                                      "Quantity": ""
+                                    }
+                                  ]
+                                }'''
+                    def invoicejson  = readJSON(text: invoiceStructure)
+
+                    //assign working hours
+                    def workedhours = worklog.billableSeconds /3600
+                    invoicejson.LineItems.each{lineItem->
+                      lineItem.Quantity = workedhours
+                    }
+
+                    worklog.attributes.values?.each{attribute ->
+                      if(attribute.key == '_TempoAccount_'){
+                        invoicejson.Reference = attribute.value
+                      }
+                    }
+                    def finalInvoice = JsonOutput.prettyPrint(invoicejson.toString()) 
+                    println("Invoice JSON: ${finalInvoice}")
+
+                    //get invoices
+                    String fetchInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices?Statuses=DRAFT"
+
+                    def requestHeaders = [[
+                                        name: "Authorization",
+                                        value: "Bearer ${xeroAccessToken}"
+                                    ]]
+                    def invoicesResponse = sendGetRequest(fetchTimeSheetUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}" )
+                    if(invoicesResponse.status == 200){
+                      def invoicesJSON  = readJSON(text: invoicesResponse.content)
+                      invoicesJSON.Invoices = invoicesJSON.Invoices.findAll{ invoice ->
+                            (invoice.Reference !=null && invoice.Reference == invoicejson.Reference)
+                      }
+
+                      //remove unused data
+                      invoicesJSON.remove('Id')
+                      invoicesJSON.remove('Status')
+                      invoicesJSON.remove('ProviderName')
+                      invoicesJSON.remove('DateTimeUTC')
+
+                      // add created invoice to existing invoices
+                      invoicesJSON.InvoicesaddAll(invoicejson)
+
+                      //POST invoices
+                      
+                    }
+                      
+                  }
+                }
+          }
+        }
+    }
+
     stage('WriteToCSV') {
-         if (teamResponse) {
+         if (!mainJSON.teams.isEmpty()) {
             def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
              println("final result: ${finalJson}")
              writeResponseToCSV(mainJSON)
