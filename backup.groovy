@@ -45,6 +45,8 @@ String jobExecutionNode = 'master'
 teamResponse = null
 mainJSON = null
 
+def customerList
+workLogList = []
 String tempoRefreshBody
 String jiraRefreshBody
 def xeroRefreshBody
@@ -236,7 +238,7 @@ def writeResponseToCSV(mainJSON) {
     
     // Add title to CSV content
     csvContentForValidWorklogs.append("WORK LOG ID, ISSUE ID, BILLABLE SECONDS,START DATE, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, USER, ACCOUNT KEY, TEAM \n")
-    csvContentForInvalidWorklogs.append("WORK LOG ID, ISSUE ID, BILLABLE SECONDS,START DATE, DESCRIPTION, CREATED AT, UPDATED AT, STATUS, REVIEWER, USER, ACCOUNT KEY, TEAM, ERROR \n")
+    csvContentForInvalidWorklogs.append("WORK LOG ID, ISSUE ID, BILLABLE SECONDS,START DATE, DESCRIPTION, CREATED AT, UPDATED AT, ERROR \n")
 
     // Iterate over results and append to CSV content
     mainJSON.teams.each { team ->
@@ -248,14 +250,15 @@ def writeResponseToCSV(mainJSON) {
                 attributeVal = attribute.value 
               }
             }
-            if(worklog.errorLogs.isEmpty()){
               csvContentForValidWorklogs.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.startDate},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${timesheet.user.displayName},${attributeVal},${team.name}\n")
-            }else{
-              csvContentForInvalidWorklogs.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.startDate},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${timesheet.status.key},${timesheet.reviewer.displayName},${timesheet.user.displayName},${attributeVal},${team.name},${worklog.errorLogs}\n")
-            }
-            
+                
           }         
         }
+    }
+    workLogList?.each{worklog ->
+        if(!worklog.errorLogs.isEmpty()){
+              csvContentForInvalidWorklogs.append("${worklog.tempoWorklogId},${worklog.issue.key},${worklog.billableSeconds},${worklog.startDate},${worklog.description},${worklog.createdAt},${worklog.updatedAt},${worklog.errorLogs}\n")
+            }
     }
     // Write content to CSV file
     writeFile file: "timeSheet.csv", text: csvContentForValidWorklogs.toString()
@@ -284,20 +287,19 @@ node('master') {
       }
     }
     stage('GetAllTeams'){
-      String fetchTeamUrl = "https://api.tempo.io/4/teams"
+      String fetchTeamUrl = "https://api.tempo.io/4/teams?limit=50&offset=0"
       withCredentials([
             string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
       ]){
 
         def isNextAvailable = true;
-        def offset = 0
         
         while(isNextAvailable){
           def requestHeaders = [[
                                   name: "Authorization",
                                   value: "Bearer ${tempoAccessToken}"
                               ]]
-          teamResponse = sendGetRequest("${fetchTeamUrl}?offset=${offset}&limit=2", requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
+          teamResponse = sendGetRequest(fetchTeamUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
           if(teamResponse.status == 200){
             //append fetch teams to existing teams
             def teamJSON = readJSON(text: teamResponse.content)
@@ -306,13 +308,16 @@ node('master') {
               //rename feilds
               mainJSON.teams = mainJSON.results
               mainJSON.remove('results')
+              println("initial JSON: ${mainJSON.teams}")
             }else{
               mainJSON.teams.addAll(teamJSON.results)
+              println("updated JSON: ${mainJSON.teams}")
             }
 
             // if available next url
             if(teamJSON.metadata.next){
-              offset++
+              println("next url: ${teamJSON.metadata.next}")
+              fetchTeamUrl = teamJSON.metadata.next
             }else{
               isNextAvailable= false
             } 
@@ -321,6 +326,9 @@ node('master') {
            isNextAvailable= false 
           }
         }
+
+        def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
+        println("final result: ${finalJson}")
 
       }
     }
@@ -461,7 +469,8 @@ node('master') {
           sdf.setTimeZone(tz) // Set the timezone to UTC
 
           // Format yesterday's date
-          String yesterdayDate = sdf.format(cal.getTime())
+        //   String yesterdayDate = sdf.format(cal.getTime())
+          String yesterdayDate = '2024-03-11'
           println("yesterday Date: ${yesterdayDate}")
 
           mainJSON.teams.each { team ->
@@ -523,7 +532,19 @@ node('master') {
                       worklog.issue.key = issueJson.key
                       worklog.issue.summery = issueJson.fields.summary
                       worklog.issue.parent = issueJson.fields.parent
+                      if(!worklog.issue.parent.isEmpty()){
+                        def parentIssueUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/issue/${worklog.issue.parent.id}"
 
+                        def parentRequestHeaders = [[
+                                name: "Authorization",
+                                value: "Bearer ${jiraAccessToken}"
+                            ]]
+                        def parentIssueResponse = sendGetRequest(parentIssueUrl, parentRequestHeaders, "JIRA", "${jiraRefreshBody}${refreshTokenJira}" )
+                        if(parentIssueResponse.status == 200){
+                          def parentissueJson  = readJSON(text: parentIssueResponse.content)
+                          worklog.issue.customers = parentissueJson.fields.customfield_12367
+                        }
+                      } 
                     }
                   }
                 } 
@@ -533,178 +554,222 @@ node('master') {
       }
     }
 
+    stage('Fetch Customers'){
+      withCredentials([
+              string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
+            ])
+        {
+          String fetchContactsUrl = "https://api.xero.com/api.xro/2.0/Contacts"
+
+          def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                               ]
+          def contactsResponse = sendGetRequest(fetchContactsUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
+          if(contactsResponse.status == 200){
+              customerList = readJSON(text: contactsResponse.content)
+              println("Customers JSON: ${customerList}")
+
+          }
+        }
+    }
+
     stage('Update Invoices'){
         withCredentials([
               string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
             ])
         {
+          def worklogSet = []
           mainJSON.teams.each { team ->
                 team.timesheets?.each { timesheet ->
-                  timesheet.worklogs?.each{worklog ->
-                    worklog.errorLogs = []
-                    def invoiceStructure = '''
-                                {
-                                  "Invoices": [
-                                    {
-                                      "Type": "ACCREC",
-                                      "Contact": {
-                                        "ContactID": "bc749faf-9fb1-4a3a-8431-98f2fcfc4b8e"
-                                      },
-                                      "DueDateString": "",
-                                      "InvoiceNumber": "",
-                                      "Reference": "",
-                                      "Status": "DRAFT",
-                                      "LineAmountTypes": "Inclusive",
-                                      "LineItems": [
-                                        {
-                                          "ItemCode": "",
-                                          "Quantity": ""
-                                        }
-                                      ]
-                                    }
-                                  ]
-                                }
-                                '''
-                    def invoicejson  = readJSON(text: invoiceStructure)
-                    println("invoicejson: ${invoicejson}")
-                    //calculate working hours
-                    def workedhours = worklog.billableSeconds /3600
-                    invoicejson.Invoices[0].LineItems[0].Quantity = workedhours
-
-                    //assign itemCode
-                    worklog.attributes.values?.each{attribute ->
-                      if(attribute.key == '_Type_'){
-                        invoicejson.Invoices[0].LineItems[0].ItemCode = attribute.value
-                      }
-                    }
-
-                    // set DueDate
-                    Calendar cal = Calendar.getInstance()
-                    cal.add(Calendar.DAY_OF_MONTH, 31)
-
-                    // Set timezone to UTC for formatting
-                    TimeZone tz = TimeZone.getTimeZone("UTC")
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
-                    sdf.setTimeZone(tz) // Set the timezone to UTC
-
-                    // Format the date after 31 days from today
-                    String nextMonthDate = sdf.format(cal.getTime())
-                    println("Set due date: ${nextMonthDate}")
-                    invoicejson.Invoices[0].DueDateString = nextMonthDate
-
-                    if(invoicejson.Invoices[0].LineItems[0].ItemCode != null){
-                      if(worklog.issue.parent){
-                        println "has a parent"
-                        if(worklog.issue.parent.fields.issuetype.name == "Epic"){
-                          invoicejson.Invoices[0].Reference = worklog.issue.parent.fields.summary
-
-                          // just need to clarify do we need to avoid when attributes->key "_TempoAccount_" is empty or when worklog.issue.parent.fields.summary is empty???
-                          if(invoicejson.Invoices[0].Reference != null){
-
-                            //get invoices
-                            String fetchInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices?Statuses=DRAFT"
-
-                            def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                                                  [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                                                ]
-                            def invoicesResponse = sendGetRequest(fetchInvoicesUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
-                            if(invoicesResponse.status == 200){
-                              def invoicesJSON  = readJSON(text: invoicesResponse.content)
-
-                                println("invoice JSON: ${invoicesJSON.Invoices}")
-                              if(!invoicesJSON.Invoices.isEmpty()){
-                                  invoicesJSON.Invoices = invoicesJSON.Invoices.findAll{ invoice ->
-                                      (invoice.Reference !=null && invoice.Reference == invoicejson.Invoices[0].Reference)
-                                  }
-                                  if(!invoicesJSON.Invoices.isEmpty()){
-                                  
-                                      println("filtered invoice JSON: ${invoicesJSON.Invoices}")
-                                    //if invoices are not empty
-                                      boolean isItemCodeExist = false
-                                      //check whether Item Code is exist
-                                      invoicesJSON.Invoices.each{ invoice->
-                                        invoice.LineItems.each{lineItem->
-                                          println("check lineItem code lineItem.ItemCode: ${lineItem.ItemCode} invoicejson.LineItems[0].ItemCode :${invoicejson.Invoices[0].LineItems[0].ItemCode}")
-                                          if(lineItem.ItemCode == invoicejson.Invoices[0].LineItems[0].ItemCode){
-                                            println("item code exist lineItem: ${lineItem.Quantity}")
-                                            lineItem.Quantity += workedhours
-                                            println("Updated line Item Qty: ${lineItem.Quantity}")
-                                          
-                                            isItemCodeExist = true
-                                          }
-                                        }
-                                        if(!isItemCodeExist){
-                                          println("Add lineItem: ${invoicejson.Invoices[0].LineItems[0]}")
-                                          invoice.LineItems.add(invoicejson.Invoices[0].LineItems[0])
-                                        }
-                                      }
-                                    println("Update Invoice Number: ${invoicesJSON.Invoices[0].InvoiceNumber}")
-                                    invoicejson.Invoices[0].InvoiceNumber = invoicesJSON.Invoices[0].InvoiceNumber
-                                    invoicejson.Invoices[0].LineItems = invoicesJSON.Invoices[0].LineItems
-                                  }else{
-                                    //if invoices are empty
-                                    println("Invoices are epmty after filter: ${invoicejson}")
-                                    invoicejson.Invoices[0].remove('InvoiceNumber')
-                                  }
-                              }else{
-                                //if invoices are empty
-                                  println("Invoices are epmty before filter: ${invoicejson}")
-                                  invoicejson.Invoices[0].remove('InvoiceNumber')
-                              }
-
-                              //remove unnecessary fields
-                              invoicejson.Invoices[0].LineItems.each{lineItem ->
-                                lineItem.remove('LineAmount')
-                                lineItem.remove('AccountCode')
-                                lineItem.remove('TaxAmount')
-                                lineItem.remove('LineAmount')
-                                lineItem.remove('UnitAmount')
-                                lineItem.remove('TaxType')
-                              }
-
-                              // add created invoice to existing invoices
-                              def finalInvoice = JsonOutput.prettyPrint(invoicejson.toString()) 
-                              println("final JSON: ${finalInvoice}")
-                              
-                              // POST invoices
-                              String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
-
-                              def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                                                    [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                                                  ]
-                          
-                              sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
-                            }
-                          }
-                        }else{
-                          println "Parent issue type is not Epic"
-                          worklog.errorLogs.add("Parent issue type is not Epic")
-                        }
-                      }
-                      else{
-                        println "has not a parent"
-                        worklog.errorLogs.add("has not a parent")
-                      }
-                    }else{
-                      println "There is no _Type_ key in Attributes"
-                      worklog.errorLogs.add("There is no _Type_ key in Attributes")
-                    }
+                  if(timesheet.worklogs){
+                    worklogSet.addAll(timesheet.worklogs)
                   }
                 }
           }
-        }
-              def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
-             println("final result: ${finalJson}")
-    }
+          workLogList = worklogSet.groupBy { it.tempoWorklogId }.collect { it.value.first() }
+                
+          workLogList?.each{worklog ->
+            worklog.errorLogs = []
+            def invoiceStructure = '''
+                              {
+                                "Invoices": [
+                                  {
+                                    "Type": "ACCREC",
+                                    "Contact": {
+                                      "ContactID": ""
+                                    },
+                                    "DueDateString": "",
+                                    "InvoiceNumber": "",
+                                    "Reference": "",
+                                    "Status": "DRAFT",
+                                    "LineAmountTypes": "Inclusive",
+                                    "LineItems": [
+                                      {
+                                        "ItemCode": "",
+                                        "Quantity": ""
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                                '''
+              def invoicejson  = readJSON(text: invoiceStructure)
+              println("invoicejson: ${invoicejson}")
+              //calculate working hours
+              def workedhours = worklog.billableSeconds /3600
+              invoicejson.Invoices[0].LineItems[0].Quantity = workedhours
 
-    stage('WriteToCSV') {
-         if (!mainJSON.teams.isEmpty()) {
-            def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
-             println("final result: ${finalJson}")
-             writeResponseToCSV(mainJSON)
-             println "Timesheet data written to CSV file"
-         }
-    }    
+                    //assign itemCode
+              worklog.attributes.values?.each{attribute ->
+                if(attribute.key == '_Type_'){
+                  invoicejson.Invoices[0].LineItems[0].ItemCode = attribute.value
+                }else if(attribute.key == '_TempoAccount_'){
+                  invoicejson.Invoices[0].Reference =  attribute.value
+                }
+              }
+
+              // set DueDate
+              Calendar cal = Calendar.getInstance()
+              cal.add(Calendar.DAY_OF_MONTH, 31)
+
+              // Set timezone to UTC for formatting
+              TimeZone tz = TimeZone.getTimeZone("UTC")
+              SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
+              sdf.setTimeZone(tz) // Set the timezone to UTC
+
+              // Format the date after 31 days from today
+              String nextMonthDate = sdf.format(cal.getTime())
+              println("Set due date: ${nextMonthDate}")
+              invoicejson.Invoices[0].DueDateString = nextMonthDate
+
+              if(invoicejson.Invoices[0].LineItems[0].ItemCode != null){
+                if(worklog.issue.parent){
+                  println "has a parent"
+                  if(worklog.issue.parent.fields.issuetype.name == "Epic"){
+                    invoicejson.Invoices[0].Reference = worklog.issue.parent.fields.summary
+
+                    // just need to clarify do we need to avoid when attributes->key "_TempoAccount_" is empty or when worklog.issue.parent.fields.summary is empty???
+                    if(invoicejson.Invoices[0].Reference != null){
+                      //check customers
+                      println("checking cutomer : ${worklog.issue.customers[0].value} customer list: ${customerList.Contacts}")
+                      def customerListJSON = JsonOutput.prettyPrint(customerList.toString()) 
+                      println("customerListJSON : ${customerListJSON}")
+                      def xeroCustomer = customerList.Contacts.findAll{contact ->
+                        println("xeroCustomer: ${contact.Name}")
+                        (contact.Name == worklog.issue.customers[0].value)
+                      }
+                            
+                      println("customer list after filter: ${xeroCustomer}")
+                      if(!xeroCustomer.isEmpty()){
+
+                        //assign customer id
+                        invoicejson.Invoices[0].Contact.ContactID = xeroCustomer[0].ContactID
+
+                        //get invoices
+                        String fetchInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices?Statuses=DRAFT"
+
+                        def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                                    [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                                  ]
+                        def invoicesResponse = sendGetRequest(fetchInvoicesUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
+                        if(invoicesResponse.status == 200){
+                          def invoicesJSON  = readJSON(text: invoicesResponse.content)
+
+                            println("invoice JSON: ${invoicesJSON.Invoices}")
+                          if(!invoicesJSON.Invoices.isEmpty()){
+                              invoicesJSON.Invoices = invoicesJSON.Invoices.findAll{ invoice ->
+                                  (invoice.Reference !=null && invoice.Reference == invoicejson.Invoices[0].Reference)
+                              }
+                              if(!invoicesJSON.Invoices.isEmpty()){
+                                    
+                                println("filtered invoice JSON: ${invoicesJSON.Invoices}")
+                                //if invoices are not empty
+                                  boolean isItemCodeExist = false
+                                  //check whether Item Code is exist
+                                  invoicesJSON.Invoices.each{ invoice->
+                                    invoice.LineItems.each{lineItem->
+                                      println("check lineItem code lineItem.ItemCode: ${lineItem.ItemCode} invoicejson.LineItems[0].ItemCode :${invoicejson.Invoices[0].LineItems[0].ItemCode}")
+                                      if(lineItem.ItemCode == invoicejson.Invoices[0].LineItems[0].ItemCode){
+                                        println("item code exist lineItem: ${lineItem.Quantity}")
+                                        lineItem.Quantity += workedhours
+                                        println("Updated line Item Qty: ${lineItem.Quantity}")
+                                            
+                                        isItemCodeExist = true
+                                      }
+                                    }
+                                    if(!isItemCodeExist){
+                                      println("Add lineItem: ${invoicejson.Invoices[0].LineItems[0]}")
+                                      invoice.LineItems.add(invoicejson.Invoices[0].LineItems[0])
+                                    }
+                                  }
+                                println("Update Invoice Number: ${invoicesJSON.Invoices[0].InvoiceNumber}")
+                                invoicejson.Invoices[0].InvoiceNumber = invoicesJSON.Invoices[0].InvoiceNumber
+                                invoicejson.Invoices[0].LineItems = invoicesJSON.Invoices[0].LineItems
+                              }else{
+                                //if invoices are empty
+                                println("Invoices are epmty after filter: ${invoicejson}")
+                                      invoicejson.Invoices[0].remove('InvoiceNumber')
+                              }
+                          }else{
+                            //if invoices are empty
+                              println("Invoices are epmty before filter: ${invoicejson}")
+                              invoicejson.Invoices[0].remove('InvoiceNumber')
+                          }
+
+                          //remove unnecessary fields
+                          invoicejson.Invoices[0].LineItems.each{lineItem ->
+                            lineItem.remove('LineAmount')
+                            lineItem.remove('AccountCode')
+                            lineItem.remove('TaxAmount')
+                            lineItem.remove('LineAmount')
+                            lineItem.remove('UnitAmount')
+                            lineItem.remove('TaxType')
+                          }
+
+                          // add created invoice to existing invoices
+                          def finalInvoice = JsonOutput.prettyPrint(invoicejson.toString()) 
+                          println("final JSON: ${finalInvoice}")
+                                
+                          // POST invoices
+                          // String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
+
+                          // def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                          //                       [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                          //                     ]
+                            
+                          // sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
+                        }
+                      }else{
+                        println("NO MATCHING CUSTOMER")
+                        worklog.errorLogs.add("NO MATCHING CUSTOMER")
+                      }
+                    }
+                  }else{
+                    println "PARENT ISSUE IS NOT AN EPIC"
+                    worklog.errorLogs.add("PARENT ISSUE IS NOT AN EPIC")
+                  }
+                }
+                else{
+                  println "PARENT EPIC NOT FOUND"
+                  worklog.errorLogs.add("PARENT EPIC NOT FOUND")
+                }
+              }else{
+                println "ATTRIBUTE _Type_ NOT FOUND"
+                worklog.errorLogs.add("ATTRIBUTE _Type_ NOT FOUND")
+              }
+          }
+        }
+  }
+
+  stage('WriteToCSV') {
+       if (!mainJSON.teams.isEmpty()) {
+          def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
+           println("final result: ${finalJson}")
+           writeResponseToCSV(mainJSON)
+           println "Timesheet data written to CSV file"
+       }
+  }    
+
     currentBuild.result = 'SUCCESS'
   } catch (Exception err) {
     println 'Caught an error while running the build. Saving error log in the database.'
