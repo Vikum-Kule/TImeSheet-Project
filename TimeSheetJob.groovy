@@ -749,13 +749,13 @@ node('master') {
                               println("final invoice JSON: ${finalInvoice}")
                                         
                               // POST invoices
-                              // String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
+                               String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
 
-                              // def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                              //                       [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                              //                     ]
+                               def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                                     [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                                   ]
                                     
-                              // sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
+                               sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
                             }
                           }else{
                             println("NO MATCHING CUSTOMER")
