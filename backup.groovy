@@ -27,6 +27,7 @@ String jiraClientSecret = 'JIRA_CLIENT_SECRET'
 String jiraCode = 'JIRA_CODE' 
 String xeroClientId = 'XERO_CLIENT_ID'
 String xeroClientSecret = 'XERO_CLIENT_SECRET'
+Boolean isFinalInvoice = params.Final_Invoice_Generation
 
 //tokens
 tempoAccessToken = null
@@ -46,6 +47,7 @@ teamResponse = null
 mainJSON = null
 
 def quoteList
+workLogList = []
 String tempoRefreshBody
 String jiraRefreshBody
 def xeroRefreshBody
@@ -184,6 +186,7 @@ def refreshTokensRequest (url, payload, header ){
 }
 
 def updateTokens(refreshToken, credentialId) {
+
   // Specify the new secret text
   def newSecretText = refreshToken
 
@@ -493,7 +496,7 @@ node('master') {
 
           // Format yesterday's date
         //   String yesterdayDate = sdf.format(cal.getTime())
-          String yesterdayDate = '2024-03-11'
+          String yesterdayDate = '2024-04-09'
           println("yesterday Date: ${yesterdayDate}")
 
           mainJSON.teams.each { team ->
@@ -687,8 +690,8 @@ node('master') {
                             String fetchInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices?Statuses=DRAFT"
 
                             def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                                                  [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                                                 ]
+                                                        [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                                      ]
                             def invoicesResponse = sendGetRequest(fetchInvoicesUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
                             if(invoicesResponse.status == 200){
                               def invoicesJSON  = readJSON(text: invoicesResponse.content)
@@ -747,13 +750,13 @@ node('master') {
                               println("final invoice JSON: ${finalInvoice}")
                                         
                               // POST invoices
-                              String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
+                               String postInvoicesUrl = "https://api.xero.com/api.xro/2.0/Invoices"
 
-                              def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                                                    [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                                                  ]
+                               def invoiceRequestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                                     [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                                   ]
                                     
-                              sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
+                               sendPostRequest( postInvoicesUrl, finalInvoice, invoiceRequestHeaders, "XERO", "${xeroRefreshBody}${refreshTokenXero}")
                             }
                           }else{
                             println("NO MATCHING CUSTOMER")

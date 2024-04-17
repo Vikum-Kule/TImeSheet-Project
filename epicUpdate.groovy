@@ -44,7 +44,7 @@ String scriptFolderPath
 String jobExecutionNode = 'master'
 
 def quoteList
-workLogList = []
+def customerList
 String tempoRefreshBody
 String jiraRefreshBody
 def xeroRefreshBody
@@ -102,7 +102,7 @@ def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {
                     httpMode: 'POST',
                     requestBody: payload,
                     consoleLogResponseBody: true,
-                    validResponseCodes: '200, 401,403, 404',
+                    validResponseCodes: '200, 201, 401, 403, 404',
                     url: url
     if (response.status == 401){
       if(platform == "XERO"){
@@ -124,12 +124,22 @@ def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {
               }
           }
           sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+      }else if (platform == "TEMPO"){
+          //update header with new access token
+          refreshTokens(platform, refreshTokenPayload)
+          header.each { data ->
+              if (data.name == "Authorization") {
+                  data.value = "Bearer ${tempoAccessToken}"
+              }
+          }
+          sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+      }else{
+
       }
     }else{
       println(response)
       return response
-    }
-    
+    } 
 }
 def refreshTokens(platform, refreshTokenPayload){
     switch (platform) {
@@ -253,7 +263,7 @@ node('master') {
               string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
             ])
         {
-          String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes"
+          String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?Status=SENT"
 
           def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
                                 [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
@@ -294,6 +304,108 @@ node('master') {
         }
     }
 
+    stage('fetch Customers'){
+      if(!quoteList.Quotes.isEmpty()){
+            withCredentials([
+                string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
+              ]){
+                def customerFetchUrl = "https://api.tempo.io/4/customers"
+                def requestHeaders = [[
+                                      name: "Authorization",
+                                      value: "Bearer ${tempoAccessToken}"
+                                  ]]
+                  def customerResponse = sendGetRequest(customerFetchUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
+                  if(customerResponse){
+                      if(customerResponse.status == 200){
+                        customerList  = readJSON(text: customerResponse.content)
+                        println("curtomer List : ${customerList}")
+                      }
+                  } 
+            }
+      }
+    }
+
+    stage("Fetching Leads"){
+      withCredentials([
+              string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero'),
+              string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
+            ])
+        {
+          quoteList.Quotes.each{quote ->
+            String fetchCustomerUrl = "https://api.xero.com/api.xro/2.0/contacts/?where=Name%3D%22${quote.Contact.Name}%22&page=0"
+
+            def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                  [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                ]
+            def customerResponse = sendGetRequest(fetchCustomerUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
+            if(customerResponse.status == 200){
+              def customerData  = readJSON(text: customerResponse.content)
+              if(!customerData.isEmpty()){
+                def leadName = "${customerData.Contacts[0].ContactPersons[0].FirstName}+${customerData.Contacts[0].ContactPersons[0].LastName}"
+                def userUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/user/search?query=${leadName}"
+
+                def jiraRequestHeaders = [[
+                        name: "Authorization",
+                        value: "Bearer ${jiraAccessToken}"
+                    ]]
+                def userResponse = sendGetRequest(userUrl, jiraRequestHeaders, "JIRA", "${jiraRefreshBody}${refreshTokenJira}" )
+                if(userResponse.status == 200){
+                  def userJson  = readJSON(text: userResponse.content)
+                  println("leadId: ${userJson[0].accountId}")
+                  quote.leadId = userJson[0].accountId
+                }
+              }
+            }
+          }
+        }
+    }
+
+    stage('Create Accounts'){
+        if(!quoteList.Quotes.isEmpty()){
+            withCredentials([
+                string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
+              ]){
+                  quoteList.Quotes.each{quote ->
+                    def accountStructure = '''{
+                                              "key": "",
+                                              "leadAccountId": "",
+                                              "name": "",
+                                              "global": true,
+                                              "status": "OPEN",
+                                              "customerKey": ""
+                                            }'''
+                    def accountJSON  = readJSON(text: accountStructure)
+                    accountJSON.name = quote.Title
+                    accountJSON.key = quote.QuoteNumber
+                    accountJSON.leadAccountId = quote.leadId
+                    def accountCustomer  = customerList.results.findAll{customer->
+                      customer.name.toLowerCase() == quote.Contact.Name.toLowerCase()
+                    }
+                    if(!accountCustomer.isEmpty()){
+                      accountJSON.customerKey = accountCustomer[0].key
+                    }
+                    def finalAccount = JsonOutput.prettyPrint(accountJSON.toString())
+                    println("final account: ${finalAccount}")
+                    String createAccountUrl = "https://api.tempo.io/4/accounts"
+
+                      def requestHeaders = [[
+                                          name: "Authorization",
+                                          value: "Bearer ${tempoAccessToken}"
+                                      ]]
+                      def accountResponse = sendPostRequest( createAccountUrl, finalAccount, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
+                      if(accountResponse){
+                          if(accountResponse.status == 200){
+                            def accResponseJSON  = readJSON(text: accountResponse.content)
+                            println("Account results: ${accResponseJSON}")
+                            quote.account = accResponseJSON.id
+                          }
+
+                      }
+                  }
+                }
+          } 
+    }
+
     stage('Create Tasks'){
       if(!quoteList.Quotes.isEmpty()){
           withCredentials([
@@ -309,8 +421,31 @@ node('master') {
                                                     {
                                                         "key": "TIWI",
                                                     },
+                                                    "customfield_12382": "",
                                                     "summary": "",
-                                                    "description": "",
+                                                    "description": {
+                                                      "content": [
+                                                        {
+                                                          "content": [
+                                                            {
+                                                              "text": "",
+                                                              "type": "text"
+                                                            }
+                                                          ],
+                                                          "type": "paragraph"
+                                                        }
+                                                      ],
+                                                      "type": "doc",
+                                                      "version": 1
+                                                    },
+                                                    "assignee":{
+                                                        "accountId":""
+                                                    },
+                                                    "components": [
+                                                      {
+                                                        "id": "16107"
+                                                      }
+                                                    ],
                                                     "issuetype": {
                                                         "name": "Task",
                                                     }
@@ -319,8 +454,12 @@ node('master') {
                                                 '''
                           def issueJson  = readJSON(text: issueStructure)
                           issueJson.fields.summary = item.Description
-                          issueJson.fields.description = "This is an task based on a quote line item."
-                          def finalIssue = JsonOutput.prettyPrint(issueJson.toString()) 
+                          issueJson.fields.assignee.accountId = quote.leadId
+                          issueJson.fields.customfield_12382 = quote.account
+                          // issueJson.fields.customfield_12382 = 126
+                          issueJson.fields.description.content[0].content[0].text = item.Description
+                          def finalIssue = JsonOutput.prettyPrint(issueJson.toString())
+                          println("finalIssue : ${finalIssue}") 
                           def issueUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/issue"
 
                           def jiraRequestHeaders = [[
