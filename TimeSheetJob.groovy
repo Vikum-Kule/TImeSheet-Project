@@ -586,6 +586,53 @@ node('master') {
       }
     }
 
+    stage('Get Accounts'){
+      if(!mainJSON.teams.isEmpty()){
+        withCredentials([
+              string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
+            ])
+        {
+          mainJSON.teams.each { team ->
+                team.timesheets?.each { timesheet ->
+                  timesheet.worklogs?.each{worklog ->
+                    worklog.attributes.values?.each{attribute ->
+                      if(attribute.key == '_TempoAccount_' && attribute.value){
+                        println("Tempo Accounts: ${attribute.value}")
+                        //fetch account according to the account key
+                              def accountBody = '''
+                                              {
+                                                "keys": [],
+                                                "statuses": [
+                                                  "OPEN"
+                                                ]
+                                              }
+                                            '''
+                          def accountJson  = readJSON(text: accountBody)
+                          accountJson.keys.add(attribute.value)
+                          def finalAccount = JsonOutput.prettyPrint(accountJson.toString())
+                          println("Final Account: ${finalAccount}")
+                          String accountUrl = "https://api.tempo.io/4/accounts/search"
+                          
+                          def requestHeaders = [[
+                                              name: "Authorization",
+                                              value: "Bearer ${tempoAccessToken}"
+                                          ]]
+                          def accountResponse = sendPostRequest( accountUrl, finalAccount, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
+                          if(accountResponse.status == 200){
+                              accountResponseJSON  = readJSON(text: accountResponse.content)
+                              println("Account Result: ${accountResponseJSON}")
+                              worklog.account = accountResponseJSON.results[0]
+                          }
+                      }
+                    }
+                  }
+                }
+          }
+
+        }
+      }
+    }
+
     stage('fetch customers'){
       if(!mainJSON.teams.isEmpty()){
         withCredentials([
@@ -698,17 +745,12 @@ node('master') {
             mainJSON.teams.each { team ->
                 team.timesheets?.each { timesheet ->
                   timesheet.worklogs?.each{worklog ->
-                    worklog.attributes.values?.each{attribute ->
-                      if(attribute.key == '_TempoAccount_' && attribute.value){
-                          def costProject = costJSON.results.findAll{project->
-                              project.name = "${attribute.value}-Cost"
+                    def costProject = costJSON.results.findAll{project->
+                              project.name = "${worklog.account.name}-Cost"
                           }
                           if(!costProject.isEmpty()){
-                            println("cost project: ${costProject}")
+                            println("AccountName: ${worklog.account.name}")
                           }
-
-                      }
-                    }
                   }
                 }
             }
