@@ -263,7 +263,7 @@ node('master') {
               string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
             ])
         {
-          String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?Status=SENT"
+          String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?Status=ACCEPTED"
 
           def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
                                 [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
@@ -294,7 +294,7 @@ node('master') {
                   // Format the date to the desired format in UTC
                   def formattedDate = date.format("yyyy-MM-dd", TimeZone.getTimeZone('UTC'))
 
-                  formattedDate == '2024-03-26'
+                  formattedDate == today
                 }
                 println("Filtered: ${quoteList.Quotes}") 
 
@@ -447,14 +447,14 @@ node('master') {
                                                       }
                                                     ],
                                                     "issuetype": {
-                                                        "name": "Task",
+                                                        "name": "Epic",
                                                     }
                                                   }
                                                 }
                                                 '''
                           def issueJson  = readJSON(text: issueStructure)
                           issueJson.fields.summary = item.Description
-                          issueJson.fields.assignee.accountId = quote.leadId
+                          issueJson.fields.assignee.accountId = null
                           issueJson.fields.customfield_12382 = quote.account
                           // issueJson.fields.customfield_12382 = 126
                           issueJson.fields.description.content[0].content[0].text = item.Description

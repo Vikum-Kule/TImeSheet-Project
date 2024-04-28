@@ -1,0 +1,31 @@
+@Grab(group='net.sourceforge.jexcelapi', module='jxl', version='2.6.12')
+import jxl.Workbook
+import jxl.write.Label
+import jxl.write.WritableWorkbook
+import jxl.write.WritableSheet
+
+import java.io.File
+        
+node {
+    stage('Fetch WIP Worklogs from Tempo') { 
+       
+    }
+    stage('Fetch Invoice related data from Xero') { 
+       
+    }
+    stage('Fetch Rates from Cost Tracker') { 
+       
+    }
+    // stage('Generate Excel Sheet') {
+    //     def workbook = Workbook.createWorkbook(new File("output.xls"))
+    //     def sheet = workbook.createSheet("First Sheet", 0)
+    //     sheet.addCell(new Label(0, 0, "A label record"))
+    //     workbook.write()
+    //     workbook.close()
+        
+    //     new File("output.xls").eachLine {  
+    //      line -> println "line : $line"; 
+    //   } 
+        
+    // }
+}
