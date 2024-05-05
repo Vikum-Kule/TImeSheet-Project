@@ -43,6 +43,9 @@ import java.io.File
 def svnHelper
 def pipelineHelper
 //credentials
+tempoAccessCred = 'TEMPO_ACCESS_TOKEN'
+xeroAccessCred = 'XERO_ACCESS_TOKEN'
+jiraAccessCred = 'JIRA_ACCESS_TOKEN'
 String tempoClientId = 'TEMPO_CLIENT_ID'
 String tempoClientSecret = 'TEMPO_CLIENT_SECRET'
 String tempoCode = 'TEMPO_CODE'
@@ -107,82 +110,111 @@ def execSVN(svnCommandLine, svnCredentialsId) {
 }
 
 def sendGetRequest(url, header, platform, refreshTokenPayload) {
-    def response = httpRequest(url: url,
-                               customHeaders: header ,
-                               httpMode: 'GET',
-                               validResponseCodes: '200, 401,403, 404')
-    // Check if the request was successful or not
-    if (response.status == 401){
-      if (platform == "TEMPO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${tempoAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
-      }else if (platform == "JIRA"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${jiraAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
+    def response = null
+    withCredentials([
+            string(credentialsId: tempoAccessCred, variable: 'tokenTempo'),
+            string(credentialsId: xeroAccessCred, variable: 'tokenXero'),
+            string(credentialsId: jiraAccessCred, variable: 'tokenJira'),
+    ]){
 
-      }else if(platform == "XERO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${xeroAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
+        if(platform == "TEMPO"){
+        header.each { data ->
+                if (data.name == "Authorization") {
+                    data.value = "Bearer ${tokenTempo}"
+                }
+            }
+        }else if(platform == "JIRA"){
+            header.each { data ->
+                    if (data.name == "Authorization") {
+                        data.value = "Bearer ${tokenJira}"
+                    }
+                }
+        }else if(platform == "XERO"){
+            header.each { data ->
+                    if (data.name == "Authorization") {
+                        data.value = "Bearer ${tokenXero}"
+                    }
+                }
+        }else{
 
-      }
-    }
-    else{
-      println(response)
-      return response
+        }
+
+        response = httpRequest(url: url,
+               customHeaders: header ,
+               httpMode: 'GET',
+               validResponseCodes: '200, 401,403, 404')
+        // Check if the request was successful or not
+        if (response.status == 401){
+            if (platform == "TEMPO"){
+                refreshTokens(platform, refreshTokenPayload)
+                sendGetRequest(url, header, platform, refreshTokenPayload)
+            }else if (platform == "JIRA"){
+                refreshTokens(platform, refreshTokenPayload)
+                sendGetRequest(url, header, platform, refreshTokenPayload)
+
+            }else if(platform == "XERO"){
+                refreshTokens(platform, refreshTokenPayload)
+                sendGetRequest(url, header, platform, refreshTokenPayload)
+
+            }
+        }
+        else{
+            println(response)
+            return response
+        }
+        
     }
 }
 
 
-def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {    
-    def response = httpRequest acceptType: 'APPLICATION_JSON',
-                    contentType: 'APPLICATION_JSON',
-                    customHeaders: header,
-                    httpMode: 'POST',
-                    requestBody: payload,
-                    url: url
-    if (response.status == 401){
-      if(platform == "XERO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${xeroAccessToken}"
-              }
-          }
-          sendPostRequest( url, payload, header, platform, refreshTokenPayload)
-      }else if (platform == "TEMPO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${tempoAccessToken}"
-              }
-          }
-          sendPostRequest( url, payload, header, platform, refreshTokenPayload)
-      }
-    }else{
-      println(response)
-      return response
-    }
-    
+def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {   
+    def response = null
+    withCredentials([
+            string(credentialsId: tempoAccessCred, variable: 'tokenTempo'),
+            string(credentialsId: xeroAccessCred, variable: 'tokenXero'),
+            string(credentialsId: jiraAccessCred, variable: 'tokenJira'),
+    ]){
+        if(platform == "TEMPO"){
+            header.each { data ->
+                    if (data.name == "Authorization") {
+                        data.value = "Bearer ${tokenTempo}"
+                    }
+                }
+        }else if(platform == "JIRA"){
+            header.each { data ->
+                    if (data.name == "Authorization") {
+                        data.value = "Bearer ${tokenJira}"
+                    }
+                }
+        }else if(platform == "XERO"){
+            header.each { data ->
+                    if (data.name == "Authorization") {
+                        data.value = "Bearer ${tokenXero}"
+                    }
+                }
+        }else{
+
+        }
+        response = httpRequest acceptType: 'APPLICATION_JSON',
+               contentType: 'APPLICATION_JSON',
+               customHeaders: header,
+               httpMode: 'POST',
+               requestBody: payload,
+               url: url
+        if (response.status == 401){
+            if(platform == "XERO"){
+                refreshTokens(platform, refreshTokenPayload)
+                sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+            }else if (platform == "TEMPO"){
+                refreshTokens(platform, refreshTokenPayload)
+                sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+            }
+        }else{
+            println(response)
+            return response
+        }
+
+    } 
 }
 
 def refreshTokens(platform, refreshTokenPayload){
@@ -201,6 +233,7 @@ def refreshTokens(platform, refreshTokenPayload){
           tempoAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, tempoRefreshToken)
+          updateTokens(tempoAccessToken, tempoAccessCred)
           break
       case "JIRA":
           println "Jira Refresh Token Update"
@@ -215,6 +248,7 @@ def refreshTokens(platform, refreshTokenPayload){
           jiraAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, jiraRefreshToken)
+          updateTokens(jiraAccessToken, jiraAccessCred)
           break
       case "XERO":
           println "Xero Refresh Token Update"
@@ -226,6 +260,7 @@ def refreshTokens(platform, refreshTokenPayload){
           xeroAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, xeroRefreshToken)
+          updateTokens(xeroAccessToken, xeroAccessCred)
           break
       default:
           println "No match found."
@@ -476,68 +511,58 @@ node('windows') {
                     string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
                     ])
                 {
-                    // Define the date formatter
-                    Date lastDayOfLastMonth = null
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
-                    if(finalDate == ""){
-
-                    // Calculate the date range for the last month
+                      // Define the date formatter
                     Calendar cal = Calendar.getInstance()
-                    cal.add(Calendar.MONTH, -1)
-                    cal.set(Calendar.DAY_OF_MONTH, 1)
-                    Date firstDayOfLastMonth = cal.getTime()
 
-                    cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
-                    lastDayOfLastMonth = cal.getTime()
-                    }else{
-                    // Convert the string to a Date object
-                    lastDayOfLastMonth = sdf.parse(finalDate)
-                    }
+                    // Subtract one day to get today
+                    cal.add(Calendar.DAY_OF_MONTH, 0)
 
-                    println("Final Date : ${lastDayOfLastMonth}")
+                    // Set timezone to UTC for formatting
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd")
+                    String today = sdf.format(cal.getTime())
+                    Date todayDate = sdf.parse(today)
+                    println("Final Date : ${todayDate}")
 
                     mainJSON.teams.each { team ->
-                            team.timesheets?.each { timesheet ->
-                            String workLogUrl = timesheet.worklogs.self
+                        team.timesheets?.each { timesheet ->
+                        String workLogUrl = timesheet.worklogs.self
 
-                            def requestHeaders = [[
-                                                name: "Authorization",
-                                                value: "Bearer ${tempoAccessToken}"
-                                            ]]
-                            def worLogResponse = sendGetRequest(workLogUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
-                            if(worLogResponse){
-                                if(worLogResponse.status == 200){
-                                    def workLogjson  = readJSON(text: worLogResponse.content)
-                                    //filetr worklogs within yesterday
-                                    workLogjson.results = workLogjson.results.findAll{ workLog ->
-                                        Date createdAt = sdf.parse(workLog.createdAt)
-                                        Date updatedAt = sdf.parse(workLog.updatedAt)
-                                        boolean isAccountExist = false
-                                        boolean isInvoiceExist = false
-                                        workLog.attributes.values?.each{attribute ->
-                                            String val = attribute.value
-                                            if (attribute.key == '_TempoAccount_' && val != 'null') {
-                                                isAccountExist = true
-                                            }
-
-                                            if(attribute.key == '_InvoiceNo(DONOTEDIT)_' && attribute.value){
-                                              isInvoiceExist = true
-                                            }
+                        def requestHeaders = [[
+                                            name: "Authorization",
+                                            value: "Bearer ${tempoAccessToken}"
+                                        ]]
+                        def worLogResponse = sendGetRequest(workLogUrl, requestHeaders, "TEMPO","${tempoRefreshBody}${refreshTokenTempo}" )
+                        if(worLogResponse){
+                            if(worLogResponse.status == 200){
+                                def workLogjson  = readJSON(text: worLogResponse.content)
+                                //filetr worklogs within yesterday
+                                workLogjson.results = workLogjson.results.findAll{ workLog ->
+                                    Date worklogDate = sdf.parse(workLog.startDate)
+                                    boolean isAccountExist = false
+                                    boolean isInvoiceExist = false
+                                    workLog.attributes.values?.each{attribute ->
+                                        String val = attribute.value
+                                        if(attribute.key == '_TempoAccount_' && val != 'null'){
+                                        isAccountExist = true
                                         }
-                                        (!createdAt.after(lastDayOfLastMonth) ||!updatedAt.after(lastDayOfLastMonth)) && isAccountExist && !isInvoiceExist
+                                        if(attribute.key == '_InvoiceNo(DONOTEDIT)_' && val != 'null'){
+                                        isInvoiceExist = true
                                         }
-                                    timesheet.worklogs = workLogjson.results
-                                }else{
-                                }
+                                    }
+                                    !worklogDate.after(todayDate) && (isAccountExist && !isInvoiceExist)
+                                    }
+                                timesheet.worklogs = workLogjson.results
+                            }else{
                             }
-                            
-                            }
-                            if(team.timesheets){
+                        }
+                        
+                        }
+                        if(team.timesheets){
                             team.timesheets = team.timesheets.findAll{ timesheet ->
                                 !timesheet.worklogs.isEmpty()
                             }
-                            }
-                    }
+                        }
+                }
 
                     println("remove duplicate worklogs")
                     // Set to  track  worklog IDs
@@ -626,7 +651,9 @@ node('windows') {
                                                             '''
                                     def accountSearchJson  = readJSON(text: accountSearchBody)
                                     worklog.attributes.values?.each{attribute ->
-                                        if(attribute.key == '_TempoAccount_' && attribute.value){
+                                        String val = attribute.value
+                                        if(attribute.key == '_TempoAccount_' && val != 'null'){
+                                            println("Attribute Value: ${val}")
                                             accountSearchJson.keys[0] = attribute.value
                                         }
                                     }
@@ -641,6 +668,7 @@ node('windows') {
                                     if(accountResponse){
                                         if(accountResponse.status == 200){
                                         def accResponseJSON  = readJSON(text: accountResponse.content)
+                                        println("accResponseJSON: ${accResponseJSON}")
                                         worklog.customer = accResponseJSON.results[0].customer
                                         }
                                     }
@@ -674,7 +702,7 @@ node('windows') {
                 team.timesheets?.each { timesheet ->
                   timesheet.worklogs?.each{worklog ->
                     def costProject = costJSON.results.findAll{project->
-                              project.name == "${worklog.account.name}-Cost"
+                              project.name == "${worklog.account.key} : ${worklog.account.name} - Cost"
                           }
                           if(!costProject.isEmpty()){
                             //fetch rates
@@ -686,26 +714,16 @@ node('windows') {
                             rateResponse = sendGetRequest(rateUrl, rateRequestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
                             if(rateResponse.status == 200){
                               def rateJSON = readJSON(text: rateResponse.content)
+                              println("rateJSON: ${rateJSON}")
                               def currentDate = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
                               def closestObject = null
                               def closestDifference = Long.MAX_VALUE
                               rateJSON.rates.each{ rate->
+                                println("Origin Id: ${rate.teamMember.userLink.linked.originId} and author ${worklog.author.accountId}")
                                 if(rate.teamMember.userLink.linked.originId == worklog.author.accountId ){
                                     rate.costRates.values.each{ costVal->
-                                        if (costVal.containsKey("effectiveDate")) {
-                                            def dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-                                            dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
-                                            def effectiveDate = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                                            effectiveDate.setTime(dateFormat.parse(rate["effectiveDate"]))
-                                            def difference = Math.abs(currentDate.timeInMillis - effectiveDate.timeInMillis)
-                                            if (difference < closestDifference) {
-                                                closestDifference = difference
-                                                worklog.costRate  = rate
-                                            }
-                                        } else {
-                                            worklog.costRate = rate // If no effective date provided, consider it as closest
-                                        }
-
+                                        println("costVal: ${costVal.rate.value}")
+                                        worklog.costRate = costVal.rate.value
                                     }
                                     
                                 }
@@ -765,7 +783,7 @@ node('windows') {
 	bat('dir')		
 	
 	println localFile.child("\\TimesheetIntegration\\").list()
-    println localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.txt").length()
+    println localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.xslx").length()
     
     XSSFWorkbook workBook = new XSSFWorkbook(localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.txt").read())
     
@@ -775,7 +793,7 @@ node('windows') {
     println "adding Worklogs - begin"
     
     XSSFSheet sheet = workBook.getSheet("WIPWorklogData")
-    
+    DataFormat format = workBook.createDataFormat();
     //print worklog data
     mainJSON.teams?.each { team ->
         team.timesheets?.each { timesheet ->
@@ -785,7 +803,7 @@ node('windows') {
                 def timeSpentSeconds = worklog?.timeSpentSeconds ?: 0
                 def costRateValue 
                 if(worklog.costRate){
-                    costRateValue = worklog.costRate?.costRates?.values[0]?.rate?.value
+                    costRateValue = worklog.costRate
                 }else{
                     costRateValue = 0
                 }
@@ -798,20 +816,22 @@ node('windows') {
                 row.createCell(1)
                 row.createCell(2)
                 row.createCell(3)
-                
-                println "row ${row}" 
                 row?.getCell(0)?.setCellValueImpl("${customerName}")
+                println "row ${row}" 
+                
                 
                 println "row ${row?.getCell(0)}"
                 println "Cell 0  ${row.getCell(0).getStringCellValue()}" 
 
                 row?.getCell(1)?.setCellValueImpl("${tempoWorklogId}")
-                row?.getCell(2)?.setCellValueImpl("${timeSpentSeconds}")
-                row?.getCell(3)?.setCellValueImpl("${costRateValue}")
+                // row?.getCell(2)?.setCellValueImpl(Double.parseDouble("${timeSpentSeconds}"))
+                row?.getCell(2)?.setCellValueImpl(timeSpentSeconds)
+                row?.getCell(3)?.setCellValueImpl(costRateValue)
                 rowCount++
             }
         }
     }
+
     println "adding Worklogs - End"
 
     rowCount = 2
@@ -860,18 +880,26 @@ node('windows') {
             def amountDue = invoice.AmountDue ?: 0
             def status = invoice.Status ?: "Unknown"
             def dueDateString = invoice.DueDateString ?: "Unknown"
+            Date dueDate
+            if(dueDateString != "Unknown"){
+                def sdf = new SimpleDateFormat("yyyy-MM-dd")
+                dueDate = sdf.parse(invoice.DueDateString)
+
+            }
             def quoteLink = " "
             def currencyCode = invoice.CurrencyCode ?: "Unknown"
-            def formattedDate
+            Date formattedDate
             if(invoice.FullyPaidOnDate){
                 def fullyPaidOnDateMillis = invoice.FullyPaidOnDate.replaceAll("/Date\\((\\d+)\\+\\d+\\)/", '$1').toLong()
 
                 // Convert to yyyy-mm-dd format
                 def sdf = new SimpleDateFormat("yyyy-MM-dd")
                 sdf.setTimeZone(TimeZone.getTimeZone("UTC"))
-                formattedDate = sdf.format(new Date(fullyPaidOnDateMillis))
+                formattedDate = new Date(fullyPaidOnDateMillis)
+
+
             }else{
-                formattedDate = "NOT EXIST"
+                formattedDate = null
             }
 
             println("${contactName} | ${invoiceNumber} | ${reference} | ${amountPaid} | ${amountDue} | ${status} | ${dueDateString} | ${quoteLink} | ${currencyCode} | ${formattedDate}")
@@ -887,13 +915,20 @@ node('windows') {
             row?.getCell(0)?.setCellValueImpl("${contactName}")
             row?.getCell(1)?.setCellValueImpl("${invoiceNumber}")
             row?.getCell(2)?.setCellValueImpl("${reference}")
-            row?.getCell(3)?.setCellValueImpl("${amountPaid}")
-            row?.getCell(4)?.setCellValueImpl("${amountDue}")
+            row?.getCell(3)?.setCellValueImpl(amountPaid)
+            row?.getCell(4)?.setCellValueImpl(amountDue)
             row?.getCell(5)?.setCellValueImpl("${status}")
-            row?.getCell(6)?.setCellValueImpl("${dueDateString}")
+            if(dueDateString != "Unknown"){
+                row?.getCell(6)?.setCellValueImpl(dueDate)
+            }
             row?.getCell(7)?.setCellValueImpl("${quoteLink}")
             row?.getCell(8)?.setCellValueImpl("${currencyCode}")
-            row?.getCell(9)?.setCellValueImpl("${formattedDate}")
+            if(formattedDate != null){
+                row?.getCell(9)?.setCellValueImpl(formattedDate)
+            }
+            style = workBook.createCellStyle();
+            style.setDataFormat(format.getFormat("dd-mm-yyyy"));
+            row?.getCell(9)?.setCellStyle(style);
             
             rowCount++
         }
@@ -935,4 +970,3 @@ node('windows') {
     cleanWs()
   }
 }
-

@@ -407,9 +407,9 @@ node {
                 isRollback = true
                 worklogKeys = params.data.split(', ')
                 println("Worklog deleting keys: ${worklogKeys}")
-                // worklogKeys.each{key ->
-                //     createdWorkLogs.add(key)
-                // }
+                worklogKeys.each{key ->
+                    createdWorkLogs.add(key)
+                }
             }
 
             if(isRollback){

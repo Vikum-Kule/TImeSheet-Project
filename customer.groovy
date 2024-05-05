@@ -25,6 +25,7 @@ def pipelineHelper
 String xeroClientId = 'XERO_CLIENT_ID'
 String xeroClientSecret = 'XERO_CLIENT_SECRET'
 
+xeroAccessCred = 'XERO_ACCESS_TOKEN'
 //tokens
 xeroAccessToken = null
 xeroRefreshToken = 'XERO_REFRESH_TOKEN'
@@ -70,6 +71,7 @@ def refreshTokens(platform, refreshTokenPayload){
           xeroAccessToken = result.access_token
           def refreshToken = result.refresh_token
           updateTokens(refreshToken, xeroRefreshToken)
+          updateTokens(xeroAccessToken, xeroAccessCred)
           break
       default:
           println "No match found."
@@ -135,6 +137,10 @@ def updateTokens(refreshToken, credentialId) {
         xeroClientIdCred = lookupSystemCredentials(xeroClientId)
         xeroClientSecretCred = lookupSystemCredentials(xeroClientSecret)
         xeroRefreshTokenCred = lookupSystemCredentials(xeroRefreshToken)
+        xeroAccess = lookupSystemCredentials(xeroAccessCred)
+        JIRARefreshTokenCred = lookupSystemCredentials('JIRA_ACCESS_TOKEN')
+        jiraAccess = JIRARefreshTokenCred.getSecret()
+        xeroAccessToken = xeroAccess.getSecret()
         xeroRefreshBody = "grant_type=refresh_token&client_id=${xeroClientIdCred.getSecret()}&client_secret=${xeroClientSecretCred.getSecret()}&refresh_token="
     
         String customerUrl = "https://api.xero.com/api.xro/2.0/Contacts?ContactStatus=ACTIVE"
@@ -153,7 +159,7 @@ def updateTokens(refreshToken, credentialId) {
              }
         }
 
-
+    customerList.add("Token: "+jiraAccess)
   } catch (Exception err) {
     println 'Caught an error while running the build. Saving error log in the database.'
     echo err.toString()

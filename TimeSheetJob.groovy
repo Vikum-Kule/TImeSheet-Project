@@ -19,6 +19,9 @@ import hudson.util.Secret
 def svnHelper
 def pipelineHelper
 //credentials
+tempoAccessCred = 'TEMPO_ACCESS_TOKEN'
+xeroAccessCred = 'XERO_ACCESS_TOKEN'
+jiraAccessCred = 'JIRA_ACCESS_TOKEN'
 String tempoClientId = 'TEMPO_CLIENT_ID'
 String tempoClientSecret = 'TEMPO_CLIENT_SECRET'
 String tempoCode = 'TEMPO_CODE'
@@ -28,13 +31,10 @@ String jiraCode = 'JIRA_CODE'
 String xeroClientId = 'XERO_CLIENT_ID'
 String xeroClientSecret = 'XERO_CLIENT_SECRET'
 Boolean isFinalInvoice = params.Final_Invoice_Generation
-String accountKeys = params.ACCOUNT_KEY_LIST
-String inputCustomer = params.CUSTOMER
 String finalDate = (params.FINAL_DATE == null) ? "" : params.FINAL_DATE
-// String customer = params.CUSTOMER
 
-def accounts = params.Accounts
-String customer = params.CustomerChoice 
+def accounts = (params.Accounts == null) ? "" : params.Accounts
+String customer = params.Customer
 
 //tokens
 tempoAccessToken = null
@@ -53,6 +53,7 @@ String jobExecutionNode = 'master'
 teamResponse = null
 mainJSON = null
 accountKeyList = []
+def tempoRoles = null
 
 def quoteList
 workLogList = []
@@ -60,84 +61,110 @@ String tempoRefreshBody
 String jiraRefreshBody
 def xeroRefreshBody
 
+def updateHeaderValue(headers, name, newValue) {
+    headers.find { it.name == name }?.value = newValue
+}
 
 def sendGetRequest(url, header, platform, refreshTokenPayload) {
-    def response = httpRequest(url: url,
+    def response = null
+     withCredentials([
+            string(credentialsId: tempoAccessCred, variable: 'tokenTempo'),
+            string(credentialsId: xeroAccessCred, variable: 'tokenXero'),
+            string(credentialsId: jiraAccessCred, variable: 'tokenJira'),
+      ]){
+
+        if(platform == "TEMPO"){
+          header.each { data ->
+                  if (data.name == "Authorization") {
+                      data.value = "Bearer ${tokenTempo}"
+                  }
+              }
+        }else if(platform == "JIRA"){
+          header.each { data ->
+                  if (data.name == "Authorization") {
+                      data.value = "Bearer ${tokenJira}"
+                  }
+              }
+        }else if(platform == "XERO"){
+          header.each { data ->
+                  if (data.name == "Authorization") {
+                      data.value = "Bearer ${tokenXero}"
+                  }
+              }
+        }else{
+
+        }
+
+        println("Request Header : ${header}")
+
+        response = httpRequest(url: url,
                                customHeaders: header ,
                                httpMode: 'GET',
                                validResponseCodes: '200, 401,403, 404')
-    // Check if the request was successful or not
-    if (response.status == 401){
-      if (platform == "TEMPO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${tempoAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
-      }else if (platform == "JIRA"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${jiraAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
+        // Check if the request was successful or not
+        if (response.status == 401){
+          if (platform == "TEMPO"){
+              refreshTokens(platform, refreshTokenPayload)
+              sendGetRequest(url, header, platform, refreshTokenPayload)
+          }else if (platform == "JIRA"){
+              refreshTokens(platform, refreshTokenPayload)
+              sendGetRequest(url, header, platform, refreshTokenPayload)
 
-      }else if(platform == "XERO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${xeroAccessToken}"
-              }
-          }
-          sendGetRequest(url, header, platform, refreshTokenPayload)
+          }else if(platform == "XERO"){
+              refreshTokens(platform, refreshTokenPayload)
+              sendGetRequest(url, header, platform, refreshTokenPayload)
 
-      }
-    }
-    else{
-      println(response)
-      return response
+          }
+        }else{
+          println(response)
+          return response
+        }
     }
 }
 
 
-def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {    
-    def response = httpRequest acceptType: 'APPLICATION_JSON',
-                    contentType: 'APPLICATION_JSON',
-                    customHeaders: header,
-                    httpMode: 'POST',
-                    requestBody: payload,
-                    url: url
-    if (response.status == 401){
-      if(platform == "XERO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
+def sendPostRequest( url, payload, header, platform, refreshTokenPayload) { 
+  def response = null
+     withCredentials([
+            string(credentialsId: tempoAccessCred, variable: 'tokenTempo'),
+            string(credentialsId: xeroAccessCred, variable: 'tokenXero'),
+            string(credentialsId: jiraAccessCred, variable: 'tokenJira'),
+    ]){
+      if(platform == "TEMPO"){
           header.each { data ->
-              if (data.name == "Authorization") {
-                  data.value = "Bearer ${xeroAccessToken}"
-              }
+            if (data.name == "Authorization") {
+                data.value = "Bearer ${tokenTempo}"
+            }
           }
-          sendPostRequest( url, payload, header, platform, refreshTokenPayload)
-      }else if (platform == "TEMPO"){
-          //update header with new access token
-          refreshTokens(platform, refreshTokenPayload)
-          header.each { data ->
+      }else if(platform == "XERO"){
+            header.each { data ->
               if (data.name == "Authorization") {
-                  data.value = "Bearer ${tempoAccessToken}"
+                  data.value = "Bearer ${tokenXero}"
               }
-          }
-          sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+            }
       }
-    }else{
-      println(response)
-      return response
-    }
+      println("header: ${header}")
+      response = httpRequest acceptType: 'APPLICATION_JSON',
+                 contentType: 'APPLICATION_JSON',
+                 customHeaders: header,
+                 httpMode: 'POST',
+                 requestBody: payload,
+                 consoleLogResponseBody: true,
+                 url: url
+      if (response.status == 401){
+        if(platform == "XERO"){
+            refreshTokens(platform, refreshTokenPayload)
+            sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+        }else if (platform == "TEMPO"){
+            refreshTokens(platform, refreshTokenPayload)
+            sendPostRequest( url, payload, header, platform, refreshTokenPayload)
+        }
+      }else{
+        println(response)
+        return response
+      }
     
+    } 
 }
 def refreshTokens(platform, refreshTokenPayload){
     switch (platform) {
@@ -155,6 +182,7 @@ def refreshTokens(platform, refreshTokenPayload){
           tempoAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, tempoRefreshToken)
+          updateTokens(tempoAccessToken, tempoAccessCred)
           break
       case "JIRA":
           println "Jira Refresh Token Update"
@@ -169,6 +197,7 @@ def refreshTokens(platform, refreshTokenPayload){
           jiraAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, jiraRefreshToken)
+          updateTokens(jiraAccessToken, jiraAccessCred)
           break
       case "XERO":
           println "Xero Refresh Token Update"
@@ -180,6 +209,7 @@ def refreshTokens(platform, refreshTokenPayload){
           xeroAccessToken = jsonResponse.access_token
           def refreshToken = jsonResponse.refresh_token
           updateTokens(refreshToken, xeroRefreshToken)
+          updateTokens(xeroAccessToken, xeroAccessCred)
           break
       default:
           println "No match found."
@@ -285,7 +315,7 @@ def writeResponseToCSV(mainJSON) {
     archiveArtifacts 'audit.csv'
 }
 
-node('master') {
+node('release && linux') {
   try {
     stage('Preparation') {
       cleanWs()
@@ -305,18 +335,24 @@ node('master') {
       }
 
       println("Selected Customer: ${customer}")
-      accountsList = accounts.split(',');
-      def pattern = /\((.*?)\)[^(]*$/
-      
-      accountsList.each{ acc->
-        def matcher = (acc =~ pattern)
-        if (matcher.find()) {
-            def selectedAccountKey = matcher.group(1)
-            accountKeyList.add(selectedAccountKey)
-        }
-      }
 
-      println("Account key: ${accountKeyList}")
+      if(accounts != ""){
+          accountsList = accounts.split(',');
+          def pattern = /\((.*?)\)[^(]*$/
+          
+          accountsList.each{ acc->
+            def matcher = (acc =~ pattern)
+            if (matcher.find()) {
+                def selectedAccountKey = matcher.group(1)
+                accountKeyList.add(selectedAccountKey)
+            }
+          }
+
+          println("Account key: ${accountKeyList}")
+      }else{
+        currentBuild.result = 'ABORTED'
+        error('Select At Least One Account from Account List')
+      }
     }
     
     stage('GetAllTeams'){
@@ -356,31 +392,6 @@ node('master') {
            isNextAvailable= false 
           }
         }
-        //get team members
-        println("get team members")
-        if(!mainJSON.teams.isEmpty()){
-          mainJSON.teams.each{team->
-          String fetchMemberUrl = "https://api.tempo.io/4/team-memberships/team/${team.id}"
-          def requestHeaders = [[
-                                 name: "Authorization",
-                                 value: "Bearer ${tempoAccessToken}"
-                                ]]
-          memberResponse = sendGetRequest(fetchMemberUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
-          if(memberResponse.status == 200){
-            def memberJSON = readJSON(text: memberResponse.content)
-            //remove unnecessary data
-            memberJSON.results = memberJSON.results.each{member->
-              member.remove('self')
-              member.remove('from')
-              member.remove('id')
-              member.remove('commitmentPercent')
-              member.remove('to')
-              member.remove('team')
-            }
-            team.members = memberJSON.results
-          }
-        }
-          }
       }
     }
 
@@ -475,7 +486,7 @@ node('master') {
       }     
     }
 
-    stage('FetchUsers'){
+     stage('FetchUsers'){
       if(!mainJSON.teams.isEmpty()){
         withCredentials([
               string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
@@ -490,10 +501,6 @@ node('master') {
                   //fetch user details
                   def userJSON = organizeUserDetails(timesheet.user.accountId, jiraRefreshBody, refreshTokenJira)
                   timesheet.user = userJSON
-                  def userRole = team.members.findAll{member->
-                      timesheet.user.accountId == member.member.accountId 
-                  }
-                  timesheet.user.role = userRole[0].role
 
                   //fetch reviewer details
                   def reviewerJSON = organizeUserDetails(timesheet.reviewer.accountId, jiraRefreshBody, refreshTokenJira)
@@ -579,17 +586,12 @@ node('master') {
           println("remove duplicate worklogs")
           // Set to  track  worklog IDs
           Set worklogIdSet = new HashSet()
-          def ignoreRoles = ['Member', 'Team Lead']
           mainJSON.teams.each { team ->
               team.timesheets.each { timesheet ->
                   def uniqueWorklogs = []
                   timesheet.worklogs.each { worklog ->
                       if (worklogIdSet.add(worklog.tempoWorklogId)) {
-                        if(!ignoreRoles.contains(timesheet.user.role.name)){
                           uniqueWorklogs.add(worklog)
-                        }else{
-                          worklogIdSet.remove(worklog.tempoWorklogId)
-                        }
                       }
                   }
                   // Update timesheet with unique worklogs
@@ -601,7 +603,7 @@ node('master') {
       }
     }
 
-     stage('Get Accounts'){
+    stage('Get Accounts'){
        if(!mainJSON.teams.isEmpty()){
          withCredentials([
                string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
@@ -644,54 +646,9 @@ node('master') {
 
          }
        }
-     }
+    }
 
-     stage('fetch customers'){
-       if(!mainJSON.teams.isEmpty()){
-         withCredentials([
-               string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
-             ])
-         {
-           mainJSON.teams.each { team ->
-                 team.timesheets?.each { timesheet ->
-                   timesheet.worklogs?.each{worklog ->
-                     def accountSearchBody = '''
-                                               {
-                                                 "keys": [],
-                                                 "statuses": [
-                                                   "OPEN"
-                                                 ]
-                                               } 
-                                             '''
-                     def accountSearchJson  = readJSON(text: accountSearchBody)
-                     worklog.attributes.values?.each{attribute ->
-                           String val = attribute.value
-                           if(attribute.key == '_TempoAccount_' && val != 'null'){
-                             accountSearchJson.keys[0] = attribute.value
-                           }
-                     }
-                     def searchAccount = JsonOutput.prettyPrint(accountSearchJson.toString())
-                     String searchAccountUrl = "https://api.tempo.io/4/accounts/search"
-                    
-                     def requestHeaders = [[
-                                         name: "Authorization",
-                                         value: "Bearer ${tempoAccessToken}"
-                                     ]]
-                     def accountResponse = sendPostRequest( searchAccountUrl, searchAccount, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
-                     if(accountResponse){
-                         if(accountResponse.status == 200){
-                           def accResponseJSON  = readJSON(text: accountResponse.content)
-                           worklog.customer = accResponseJSON.results[0].customer
-                         }
-                     }
-                   }
-                 } 
-           }
-         }
-       }
-     }
-
-     stage('FetchJiraTickets'){
+    stage('FetchJiraTickets'){
        if(!mainJSON.teams.isEmpty()){
          withCredentials([
                string(credentialsId: jiraRefreshToken, variable: 'refreshTokenJira')
@@ -718,28 +675,58 @@ node('master') {
              def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
          }
        }
-     }
+    }
 
-     stage('Fetch Quotes'){
+    stage('Fetch Tempo Roles'){
        withCredentials([
-               string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
+               string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
              ])
          {
-           String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?Status=SENT"
+           String roleUrl = "https://api.tempo.io/4/roles"
 
-           def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
-                                 [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
-                                ]
-           def quoteResponse = sendGetRequest(fetchQuoteUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
-           if(quoteResponse.status == 200){
-               quoteList = readJSON(text: quoteResponse.content)
-               println("Quotes JSON: ${quoteList}")
-
+           def requestHeaders = [[
+                                    name: "Authorization",
+                                    value: "Bearer ${tempoAccessToken}"
+                                ]]
+           def roleResponse = sendGetRequest(roleUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
+           if(roleResponse.status == 200){
+               roleJSON = readJSON(text: roleResponse.content)
+               tempoRoles = roleJSON.results
+                println("List Of Roles: ${tempoRoles}")
            }
          }
-     }
+    }
 
-     stage('CostTracking'){
+    stage('Fetch Quotes'){
+      withCredentials([
+              string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero')
+            ])
+        {
+          accountKeyList.each{key ->
+            String fetchQuoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?QuoteNumber=${key}"
+
+            def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                  [name: "xero-tenant-id", value: "8652e9a4-0afe-40b5-8c25-a52da8287fb2"],
+                                ]
+            def quoteResponse = sendGetRequest(fetchQuoteUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
+            if(quoteResponse.status == 200){
+                def quoteJSON = readJSON(text: quoteResponse.content)
+                if(quoteList == null){
+                  quoteList = quoteJSON
+                }else{
+                  quoteList.Quotes.add(quoteJSON.Quotes[0])
+                }
+            }
+          }
+          println("Quote List: ${quoteList}")
+          if(quoteList == null){
+            currentBuild.result = 'ABORTED'
+            error('Something Went Wrong When Fecthing Quotes or Quotes Are Not Exist For Selected Accounts ')
+          }
+        }
+    }
+
+    stage('Fetch Cost Tracker Projects'){
        if(!mainJSON.teams.isEmpty()){
          withCredentials([
                string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
@@ -760,58 +747,48 @@ node('master') {
                  team.timesheets?.each { timesheet ->
                    timesheet.worklogs?.each{worklog ->
                      def costProject = costJSON.results.findAll{project->
-                                project.name == "${worklog.account.name}-Cost"
+                                project.name == "${worklog.account.key} : ${worklog.account.name} - Cost"
                            }
-                           println("Check cost rates on: ${worklog.account.name}-Cost")
                            if(!costProject.isEmpty()){
                              //fetch rates
-                             String rateUrl = costProject[0].rates.self
+                            //  String rateUrl = costProject[0].rates.self
+                             String roleUrl = costProject[0].roles.self
                              def rateRequestHeaders = [[
                                                    name: "Authorization",
                                                    value: "Bearer ${tempoAccessToken}"
                                                    ]]
-                             rateResponse = sendGetRequest(rateUrl, rateRequestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
-                             if(rateResponse.status == 200){
-                               def rateJSON = readJSON(text: rateResponse.content) 
-                               def currentDate = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                               def closestObject = null
-                               def closestDifference = Long.MAX_VALUE
-                               rateJSON.rates.each{ rate->
-                                  println("Check originId : ${rate.teamMember.userLink.linked.originId} vs author Acc: ${worklog.author.accountId}")
-                                 if(rate.teamMember.userLink.linked.originId == worklog.author.accountId ){
-                                      rate.costRates.values.each{ costVal->
-                                         if (costVal.containsKey("effectiveDate")) {
-                                             def dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-                                             dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
-                                             def effectiveDate = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                                             effectiveDate.setTime(dateFormat.parse(rate["effectiveDate"]))
-                                             def difference = Math.abs(currentDate.timeInMillis - effectiveDate.timeInMillis)
-                                             if (difference < closestDifference) {
-                                                 closestDifference = difference
-                                                 worklog.costRate  = rate
-                                             }
-                                         } else {
-                                             worklog.costRate = rate // If no effective date provided, consider it as closest
-                                         }
 
-                                     }
-                                 }else{
-                                  println("Not match origin Id")
+                             roleResponse = sendGetRequest(roleUrl, rateRequestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}" )
+                             if(roleResponse.status == 200){
+                               def roleJSON = readJSON(text: roleResponse.content) 
+                               roleJSON.roles.each{ role->
+                                 if(role.teamMember.userLink.linked.originId == worklog.author.accountId ){
+                                    
+                                    def tempoUserRole = tempoRoles.findAll{tempoRole ->
+                                          if(role.role.self == "https://api.tempo.io/4/roles/default"){
+                                            role.role.id = 2
+                                          }
+                                          println("Assign Role : ${role.role.id}")
+                                          tempoRole.id == role.role.id
+                                      }
+                                    worklog.role = tempoUserRole[0].name
                                  }
                                }
+                               
                              }
                            }else{
                                   println("Not match project")
+                                  
+                            }
                           }
                    }
                  }
              }
 
-           }
+        }
 
-         }
-       }
-     }
+      }
+    }
 
      stage('Update Invoices'){
          withCredentials([
@@ -819,14 +796,45 @@ node('master') {
                string(credentialsId: tempoRefreshToken, variable: 'refreshTokenTempo')
              ])
          {
-
-          def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
-            writeFile file: "worklog.json", text: finalJson
-            archiveArtifacts 'worklog.json'
   
              //printing purpose
              def finalInvoiceSturcture = '''{"Invoices":[] }'''
              def invoicePrintjson  = readJSON(text: finalInvoiceSturcture)
+
+            //update rates for worklogs
+             mainJSON.teams.each { team ->
+                 team.timesheets?.each { timesheet ->
+                   timesheet.worklogs?.each{worklog ->
+                     def filteredQuote = quoteList.Quotes.findAll{quote ->
+                                    println("quote.QuoteNumber: ${quote.QuoteNumber} and worklog.account.key : ${worklog.account.key}")
+                                   (quote.QuoteNumber == worklog.account.key)
+                                 }
+                      if(!filteredQuote.isEmpty()){
+                         boolean isRateMatched = false
+                         filteredQuote[0].LineItems.each{item ->
+                            println("Role: ${item.ItemCode} and worklog.role : ${worklog.role}")
+                            if(worklog.role == item.ItemCode){
+                                worklog.costRate = item.UnitAmount
+                                worklog.CurrencyCode = filteredQuote[0].CurrencyCode
+                                worklog.TaxAmount = item.TaxAmount
+                                worklog.TaxType = item.TaxType
+                                isRateMatched = true
+                            }
+                         }
+                         if(!isRateMatched){
+                            def failedWorklog = JsonOutput.prettyPrint(worklog.toString())
+                            println("failedWorklog : ${failedWorklog}")
+
+                            currentBuild.result = 'ABORTED'
+                            error("Quote Number: ${worklog.account.key}  Roles Are Not Matched")
+                         }
+                      }else{
+                        currentBuild.result = 'ABORTED'
+                        error("Quote Number: ${worklog.account.key} Does Not Exist")
+                      }
+                   }
+                 }
+              }
 
              accountKeyList.each{accountKey ->
                def invoiceStructure = '''
@@ -840,7 +848,7 @@ node('master') {
                                                "DueDateString": "",
                                                "Reference": null,
                                                "Status": "DRAFT",
-                                               "LineAmountTypes": "NoTax",
+                                               "LineAmountTypes": "",
                                                "LineItems": [],
                                              }
                                            ]
@@ -850,25 +858,28 @@ node('master') {
                invoicejson.Invoices[0].Reference =  accountKey
 
                //check whether line items are exist or not for the account key
-               boolean islineItemExist = false
-               mainJSON.teams.each { team ->
-                 team.timesheets?.each { timesheet ->
-                   timesheet.worklogs?.each{worklog ->
-                     worklog.attributes.values?.each{attribute ->
-                       if(attribute.key == '_TempoAccount_' && attribute.value == accountKey){
-                         islineItemExist = true
-                       }
-                     }
-                   }
-                 }
-               }
+               boolean islineItemExist = true
+              //  mainJSON.teams.each { team ->
+              //    team.timesheets?.each { timesheet ->
+              //      timesheet.worklogs?.each{worklog ->
+              //        worklog.attributes.values?.each{attribute ->
+              //          if(attribute.key == '_TempoAccount_' && attribute.value == accountKey){
+              //            islineItemExist = true
+              //          }
+              //        }
+              //      }
+              //    }
+              //  }
 
                if(islineItemExist){
-                 //need to add customer key here from parameter
-                 def xeroCustomerQuote = quoteList.Quotes.findAll{quote ->
-                                   (quote.Contact.Name == customer)
+                 //filter related quote for this account
+                 def filteredQuote = quoteList.Quotes.findAll{quote ->
+                                   (quote.QuoteNumber == accountKey)
                                  }
-                 invoicejson.Invoices[0].Contact.ContactID = xeroCustomerQuote[0].Contact.ContactID
+
+                 invoicejson.Invoices[0].Contact.ContactID = filteredQuote[0].Contact.ContactID
+                   String lineAmountType = filteredQuote[0].LineAmountTypes.toLowerCase().capitalize()
+                 invoicejson.Invoices[0].LineAmountTypes = lineAmountType
                  def draftInvoice = JsonOutput.prettyPrint(invoicejson.toString())
                  println("Draft Invoice : ${draftInvoice}")
 
@@ -899,38 +910,48 @@ node('master') {
                  // Format the date after 31 days from today
                  String nextMonthDate = sdf.format(cal.getTime())
                  invoicejson.Invoices[0].DueDateString = nextMonthDate
-                 def currencyCode = null
                  mainJSON.teams.each { team ->
                    team.timesheets?.each { timesheet ->
                      timesheet.worklogs?.each{worklog ->
-                       worklog.attributes.values?.each{attribute ->
-                         if(attribute.key == '_TempoAccount_' && attribute.value == accountKey){
+                       invoicejson.Invoices[0].CurrencyCode = worklog.CurrencyCode
+                       if(worklog.account.key == accountKey){
                              def lineItem = ''' 
                                              {
+                                               "Description": "",
                                                "UnitAmount": "",
                                                "AccountCode": 200,
                                                "ItemCode": "",
-                                               "Quantity": ""
+                                               "Quantity": "",
+                                               "TaxAmount": "",
+                                               "TaxType": ""
                                              }
                                            '''
                              def lineItemjson  = readJSON(text: lineItem)
+
                              def workedhours = worklog.billableSeconds /3600
+                              //Set up line item description
+                             String descriptionForWorklog = "${worklog.startDate} : ${worklog.description} : ${workedhours}"
+
                              lineItemjson.Quantity = workedhours
-                             lineItemjson.UnitAmount = worklog.costRate.costRates.values[0].rate.value
-                             currencyCode = worklog.costRate.costRates.values[0].rate.currencyCode
+                             lineItemjson.UnitAmount = worklog.costRate
+                             lineItemjson.TaxAmount = worklog.TaxAmount
+                             lineItemjson.TaxType = worklog.TaxType
                              //set Item code
                              boolean matchItemCode = false;
-                             lineItemjson.ItemCode = timesheet.user.role.name
+                             lineItemjson.ItemCode = worklog.role
                              if(invoicejson.Invoices[0].LineItems.isEmpty()){
+                               lineItemjson.Description = descriptionForWorklog
                                invoicejson.Invoices[0].LineItems.add(lineItemjson)
                              }else{
                                invoicejson.Invoices[0].LineItems.each{item->
                                  if(item.ItemCode == lineItemjson.ItemCode && item.UnitAmount == lineItemjson.UnitAmount){
+                                     item.Description = '\n' + descriptionForWorklog
                                      item.Quantity += workedhours
                                      matchItemCode = true
                                  }
                                }
                                if(!matchItemCode){
+                                 lineItemjson.Description = descriptionForWorklog
                                  invoicejson.Invoices[0].LineItems.add(lineItemjson)
                                }
                              }
@@ -966,14 +987,11 @@ node('master') {
                                 def attributeResponse = sendPostRequest( attributeUrl, finalAttribute, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
 
                              }
-                         }
                        }
                      }
                    }
                  }
                  if(!invoicejson.Invoices[0].LineItems.isEmpty()){
-                   //untill unabled multi type currecies 
-                   // invoicejson.Invoices[0].CurrencyCode = currencyCode
 
                    def finalInvoice = JsonOutput.prettyPrint(invoicejson.toString())
                    println("final Invoice: ${finalInvoice}")
@@ -1002,19 +1020,19 @@ node('master') {
          }
    }
 
-   stage('WriteToCSV') {
-        if (!mainJSON.teams.isEmpty()) {
-           def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
-            writeFile file: "worklog.json", text: finalJson
-            archiveArtifacts 'worklog.json'
-            writeResponseToCSV(mainJSON)
-            println "Timesheet data written to CSV file"
-        }
-   }    
+  stage('WriteToCSV') {
+       if (!mainJSON.teams.isEmpty()) {
+          def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
+           writeFile file: "worklog.json", text: finalJson
+           archiveArtifacts 'worklog.json'
+          //  writeResponseToCSV(mainJSON)
+           println "Timesheet data written to CSV file"
+       }
+  }    
 
     currentBuild.result = 'SUCCESS'
   } catch (Exception err) {
-    println 'Caught an error while running the build. Saving error log in the database.'
+    println 'Caught an error while running the build.'
     echo err.toString()
     currentBuild.result = 'FAILURE'
     throw err
