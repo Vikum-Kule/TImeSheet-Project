@@ -29,11 +29,9 @@ import org.apache.poi.xssf.usermodel.XSSFDataFormat
 import org.apache.poi.xssf.usermodel.XSSFPivotTable;
 
 
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 import hudson.FilePath;
-import hudson.remoting.RemoteInputStream;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -95,7 +93,7 @@ def checkoutSVN(localDir, remotePath, svnCredentialsId) {
 	if (isUnix()) {
 		sh returnStdout: true, script: "mkdir -p ${localDir}"
 	} else {
-		// bat returnStdout: true, script: "if not exist \"${localDir}\" mkdir \"${localDir}\""
+		bat returnStdout: true, script: "if not exist \"${localDir}\" mkdir \"${localDir}\""
 	}
 	def svnCommandLine = "co ${remotePath} ${localDir} --depth infinity"
 	execSVN(svnCommandLine, svnCredentialsId)
@@ -109,9 +107,9 @@ def execSVN(svnCommandLine, svnCredentialsId) {
 			usernameVariable: 'SVN_USERNAME')]) {
         def svnArgs = "--username \"$SVN_USERNAME\" --password \"$SVN_PASSWORD\" --no-auth-cache"
         if (isUnix()) {
-			// sh returnStdout: true, script: "svn $svnArgs $svnCommandLine"
+			sh returnStdout: true, script: "svn $svnArgs $svnCommandLine"
 		} else {
-			// bat returnStdout: true, script: "svn $svnArgs $svnCommandLine"
+			bat returnStdout: true, script: "svn $svnArgs $svnCommandLine"
 		}
     }
 }
@@ -175,7 +173,6 @@ def sendGetRequest(url, header, platform, refreshTokenPayload) {
 
 
 def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {   
-    println("Start sendPostRequest")
     def response = null
     withCredentials([
             string(credentialsId: tempoAccessCred, variable: 'tokenTempo'),
@@ -203,7 +200,6 @@ def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {
         }else{
 
         }
-        println("Send Post Request")
         response = httpRequest acceptType: 'APPLICATION_JSON',
                contentType: 'APPLICATION_JSON',
                customHeaders: header,
@@ -227,7 +223,6 @@ def sendPostRequest( url, payload, header, platform, refreshTokenPayload) {
 }
 
 def refreshTokens(platform, refreshTokenPayload){
-    println("Token Refreshing")
     switch (platform) {
       case "TEMPO":
           println "Tempo Refresh Token Update"
@@ -369,17 +364,17 @@ node{
         xeroRefreshBody = "grant_type=refresh_token&client_id=${clientIdXero}&client_secret=${clientSecretXero}&refresh_token="
       }
     }
-    // stage("Checkout Template Files") {
+    stage("Checkout Template Files") {
         
-    //     bat('dir')
+        bat('dir')
        
-    //     // Checking out the branch
-	// 	def svnBranch = "https://dev.enactor.co.uk/svn/dev/Resources/Jenkins/Groovy/TimesheetIntegration"
-	// 	echo "Checking out branch ${svnBranch}"
-	// 	checkoutSVN("TimesheetIntegration/", svnBranch, svnCredentialsId)
+        // Checking out the branch
+		def svnBranch = "https://dev.enactor.co.uk/svn/dev/Resources/Jenkins/Groovy/TimesheetIntegration"
+		echo "Checking out branch ${svnBranch}"
+		checkoutSVN("TimesheetIntegration/", svnBranch, svnCredentialsId)
 		
 				
-    // }
+    }
     stage('Fetch WIP Worklogs from Tempo') {
         if(isOnlyApprovedWorklogs){
             stage('GetAllTeams'){
@@ -801,7 +796,9 @@ node{
 
         }
       }
-    
+    //   def finalJson = JsonOutput.prettyPrint(mainJSON.toString())
+    //     writeFile file: "worklogs.json", text: finalJson
+    //     archiveArtifacts 'worklogs.json'
     }
 
     stage('Fetch Invoices'){
@@ -870,23 +867,21 @@ node{
 
     stage('Generate Excel Sheet') {
       
-        // bat('dir')
-        // bat('dir C:\\Jenkins\\workspace\\TIWI\\WIP-Report\\TimesheetIntegration')
+        bat('dir')
+        bat('dir C:\\Jenkins\\workspace\\TIWI\\WIP-Report\\TimesheetIntegration')
 
 
-        // //SXSSFWorkbook workBook = new SXSSFWorkbook(new XSSFWorkbook(new File("WIPTemplate.xslx")))
+        //SXSSFWorkbook workBook = new SXSSFWorkbook(new XSSFWorkbook(new File("WIPTemplate.xslx")))
         
-        // println "After CO hudson context"
+        println "After CO hudson context"
             
-        // println localFile.list()
+        println localFile.list()
 
-        // bat('dir')		
-        def slurper = new groovy.json.JsonSlurper()
-        // println localFile.child("\\TimesheetIntegration\\").list()
-        // println localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.xslx").length()
-        // RemoteInputStream fis = new RemoteInputStream(new FileInputStream("/var/jenkins_home/WIP_Template.xlsx"), RemoteInputStream.Flag.GREEDY)
-        // XSSFWorkbook workBook = new XSSFWorkbook(localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.txt").read())
-        XSSFWorkbook workBook = new XSSFWorkbook(localFile.getParent().getParent().getParent().child("WIP_Template.xlsx").read())
+        bat('dir')		
+        
+        println localFile.child("\\TimesheetIntegration\\").list()
+        println localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.xslx").length()
+        XSSFWorkbook workBook = new XSSFWorkbook(localFile.child("\\TimesheetIntegration\\").child("WIPTemplate.txt").read())
         // XSSFWorkbook workBook = new XSSFWorkbook(fis)
         
         
@@ -944,7 +939,6 @@ node{
         invoicesJSON.Invoices?.each { invoice ->
             println("Invoice Status: ${invoice.Status}")
             if(invoice.Status != "DELETED" && invoice.Status != "DRAFT"){
-                println("Starting Point")
                 def accountBody = '''
                                 {
                                     "keys": [],
@@ -953,14 +947,10 @@ node{
                                     ]
                                 }
                                 '''
-                
-                def accountJson = slurper.parseText(accountBody)
-                // def accountJson  = readJSON(text: accountBody)
+                def accountJson  = readJSON(text: accountBody)
+                println("Adding Invoice Reference: "+ invoice.Reference)
                 accountJson.keys.add(invoice.Reference)
-                println("Adding accountJson: "+ accountJson)
-                
-                def finalAccount = JsonOutput.toJson(accountJson)
-                // def finalAccount = JsonOutput.prettyPrint(accountJson.toString())
+                def finalAccount = JsonOutput.prettyPrint(accountJson.toString())
                 println("Final Account: "+ finalAccount)
                 String accountUrl = "https://api.tempo.io/4/accounts/search"
                 def reponseAccountJSON = null
@@ -976,8 +966,7 @@ node{
                     println("Account response: " + accountResponse)
                    
                     if(accountResponse.status == 200){
-                        // reponseAccountJSON  = readJSON(text: accountResponse.content)
-                        reponseAccountJSON = slurper.parseText(accountResponse.content)
+                        reponseAccountJSON  = readJSON(text: accountResponse.content)
                     }
                 }
                 def contactName = invoice.Contact?.Name ?: "Unknown"

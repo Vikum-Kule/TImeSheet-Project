@@ -15,6 +15,8 @@ import org.jenkinsci.plugins.plaincredentials.StringCredentials
 import org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl
 import hudson.util.Secret
 // import groovyx.net.http.RESTClient
+import java.io.StringWriter;
+import java.io.PrintWriter;
 
 import hudson.security.ACL
 
@@ -134,6 +136,8 @@ def refreshTokensRequest (url, payload ){
     if (postRC.equals(200)) {
         def tokensString = post.getInputStream().getText()
         return tokensString
+    }else {  
+      throw new Exception('Refresh with ' + url + ' did not return 200. It returned ' + postRC)
     }
 
 }
@@ -234,8 +238,18 @@ def updateTempoTokens(refreshToken, credentialId) {
   }
 }
 
+def exceptionStackToString(Exception e) {
+  StringWriter sw = new StringWriter();
+  PrintWriter pw = new PrintWriter(sw);
+  e.printStackTrace(pw);
+  String sStackTrace = sw.toString(); // stack trace as a string
+  return sStackTrace;
+
+}
+
   try {
 
+        qouteList.add('starting...')
         jenkins = Jenkins.get()
         def lookupSystemCredentials = { credentialsId ->
             return CredentialsMatchers.firstOrNull(
@@ -304,7 +318,14 @@ def updateTempoTokens(refreshToken, credentialId) {
             } 
         }    
 
+        qouteList.add('before calling xero...')
+
         String quoteUrl = "https://api.xero.com/api.xro/2.0/Quotes?Status=ACCEPTED"
+
+        qouteList.add('quotes url' + quoteUrl)
+        qouteList.add('xero token...' + xeroAccessToken)
+qouteList.add('xeroRefreshTokenCred.getSecret()=' + xeroRefreshTokenCred.getSecret())
+qouteList.add('xeroRefreshBody = ' + xeroRefreshBody)
 
         def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
                               [name: "xero-tenant-id", value: "${xeroTenantIdCred.getSecret()}"], 
@@ -312,7 +333,7 @@ def updateTempoTokens(refreshToken, credentialId) {
 
         def quoteResponse = sendGetRequest(quoteUrl , requestHeaders, "XERO","${xeroTenantIdCred.getSecret()}","${xeroRefreshBody}${xeroRefreshTokenCred.getSecret()}")
 
-
+        qouteList.add('after xero' + quoteResponse)
                 
         def slurper = new groovy.json.JsonSlurper()
         def quoteResult = slurper.parseText(quoteResponse)
@@ -324,12 +345,16 @@ def updateTempoTokens(refreshToken, credentialId) {
                 }
              }
         }
-
+    qouteList.add('end:try...')
   } catch (Exception err) {
+
+    qouteList.add('err:' + err.toString())
+  qouteList.add('stack trace: ' + exceptionStackToString(err))
     println 'Caught an error while running the build. Saving error log in the database.'
     echo err.toString()
     currentBuild.result = 'FAILURE'
     throw err
   } finally {
+    qouteList.add('finally..')
     return qouteList 
   }

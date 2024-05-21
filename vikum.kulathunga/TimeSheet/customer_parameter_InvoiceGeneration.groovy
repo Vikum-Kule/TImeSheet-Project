@@ -161,7 +161,7 @@ def updateTokens(refreshToken, credentialId) {
              }
         }
 
-    customerList.add("Token: "+ jiraAccess)
+    customerList.add("Token: "+ xeroAccessToken)
   } catch (Exception err) {
     println 'Caught an error while running the build. Saving error log in the database.'
     echo err.toString()

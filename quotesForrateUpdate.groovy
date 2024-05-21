@@ -96,7 +96,7 @@ def refreshTokens(platform, refreshTokenPayload){
     switch (platform) {
       case "XERO":
           println "Xero Refresh Token Update"
-          String xeroRefreshUrl = 'https://identity.xero.com/connect/token'
+          String xeroRefreshUrl = 'https://identity.xero.com/connect/token?='
           def xeroTokenPayload = refreshTokensRequest(xeroRefreshUrl, refreshTokenPayload )
           // save on disk
         //   def jsonResponse = readJSON text: xeroTokenPayload.content
@@ -319,12 +319,13 @@ def updateTempoTokens(refreshToken, credentialId) {
         
         if(!quoteResult.Quotes.isEmpty()){
              quoteResult.Quotes.each{qoute->
-                if (quoteMap.count{it -> it.key == qoute.QuoteNumber} == 0) {
+                if (quoteMap.count{it -> it.key == qoute.QuoteNumber} != 0) {
                     qouteList.add(qoute.Title + " (" + qoute.QuoteNumber + ")")
                 }
              }
         }
 
+    // qouteList.add("Token: "+jiraAccess)
   } catch (Exception err) {
     println 'Caught an error while running the build. Saving error log in the database.'
     echo err.toString()

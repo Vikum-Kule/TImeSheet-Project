@@ -841,7 +841,6 @@ node {
                    timesheet.worklogs?.each{worklog ->
                      def costProject = costJSON.results.findAll{project->
                                 project.name == "${worklog.account.key} : ${worklog.account.customer.name} : ${worklog.account.name} - Cost"
-                                // project.name == quote.QuoteNumber + " : " + quote.Contact.Name +" : " + quote.Title + " - Cost"
                            }
                            if(!costProject.isEmpty()){
                              //fetch rates

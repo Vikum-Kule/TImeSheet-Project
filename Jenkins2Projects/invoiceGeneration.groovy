@@ -48,15 +48,15 @@ def pipelineHelper
 tempoAccessCred = 'TEMPO_ACCESS_TOKEN'
 xeroAccessCred = 'XERO_ACCESS_TOKEN'
 jiraAccessCred = 'JIRA_ACCESS_TOKEN'
-tempoClientId = 'TEMPO_CLIENT_ID'
-tempoClientSecret = 'TEMPO_CLIENT_SECRET'
-tempoCode = 'TEMPO_CODE'
-jiraClientId = 'JIRA_CLIENT_ID'
-jiraClientSecret = 'JIRA_CLIENT_SECRET'
-jiraCode = 'JIRA_CODE' 
-xeroClientId = 'XERO_CLIENT_ID'
-xeroClientSecret = 'XERO_CLIENT_SECRET'
-xeroTenantId = 'XERO_TENANT_ID'
+String tempoClientId = 'TEMPO_CLIENT_ID'
+String tempoClientSecret = 'TEMPO_CLIENT_SECRET'
+String tempoCode = 'TEMPO_CODE'
+String jiraClientId = 'JIRA_CLIENT_ID'
+String jiraClientSecret = 'JIRA_CLIENT_SECRET'
+String jiraCode = 'JIRA_CODE' 
+String xeroClientId = 'XERO_CLIENT_ID'
+String xeroClientSecret = 'XERO_CLIENT_SECRET'
+String xeroTenantId = 'XERO_TENANT_ID'
 Boolean isFinalInvoice = params.Mark_Worklogs_As_Invoiced
 Boolean isInvoiceInExcel = (params.Invoices_Create_On == "SPREADSHEET") ? true : false
 String finalDate = (params.FINAL_DATE == null) ? "" : params.FINAL_DATE
@@ -94,6 +94,32 @@ def xeroRefreshBody
 def invoicePrintjson
 
 svnCredentialsId = "customer-repo-svn-credentials"
+
+def checkoutSVN(localDir, remotePath, svnCredentialsId) {
+	// Make directory if not exist.
+	if (isUnix()) {
+		sh returnStdout: true, script: "mkdir -p ${localDir}"
+	} else {
+		bat returnStdout: true, script: "if not exist \"${localDir}\" mkdir \"${localDir}\""
+	}
+	def svnCommandLine = "co ${remotePath} ${localDir} --depth infinity"
+	execSVN(svnCommandLine, svnCredentialsId)
+}
+
+// Main svn method. Jenkins Credentials Id should be provided.
+def execSVN(svnCommandLine, svnCredentialsId) {
+    withCredentials([usernamePassword(
+			credentialsId: svnCredentialsId, 
+			passwordVariable: 'SVN_PASSWORD', 
+			usernameVariable: 'SVN_USERNAME')]) {
+        def svnArgs = "--username \"$SVN_USERNAME\" --password \"$SVN_PASSWORD\" --no-auth-cache"
+        if (isUnix()) {
+			sh returnStdout: true, script: "svn $svnArgs $svnCommandLine"
+		} else {
+			bat returnStdout: true, script: "svn $svnArgs $svnCommandLine"
+		}
+    }
+}
 
 def sendGetRequest(url, header, platform, refreshTokenPayload) {
     def response = null
@@ -310,31 +336,6 @@ def organizeUserDetails(userId, refreshBody, refreshToken){
    return userJson
 }
 
-def fetchItemFromProducts(role, refreshBody){
-  withCredentials([
-              string(credentialsId: xeroRefreshToken, variable: 'refreshTokenXero'),
-              string(credentialsId: xeroTenantId, variable: 'tenantIdXero')
-            ])
-  { 
-    println("Worklog Role: "+ role)
-    String encodedRole = URLEncoder.encode(role, "UTF-8");
-
-    String itemFetchurl = "https://api.xero.com/api.xro/2.0/Items/"+ encodedRole
-    
-    def requestHeaders = [[name: "Authorization", value: ""],
-                          [name: "xero-tenant-id", value: "${tenantIdXero}"],
-                          ]
-    def itemResponse = sendGetRequest(itemFetchurl, requestHeaders, "XERO", "${refreshBody}${refreshTokenXero}" )
-    if(itemResponse.status == 200){
-        def itemJson  = readJSON(text: itemResponse.content)
-        return itemJson.Items[0]
-    }else{
-      currentBuild.result = 'ABORTED'
-      error("Something When Worng When Fetching Items. Status Code: "+ itemResponse.status)
-    }
-  }
-}
-
 // def writeResponseToCSV(mainJSON) {
 //     def csvContentForValidWorklogs = new StringBuilder()
 //     def csvContentForInvalidWorklogs = new StringBuilder()
@@ -370,7 +371,7 @@ def fetchItemFromProducts(role, refreshBody){
 //     archiveArtifacts 'audit.csv'
 // }
 
-node {
+node('windows') {
   try {
       
     def localFile
@@ -436,6 +437,16 @@ node {
         error('Select At Least One Account from Account List')
       }
     }
+
+    stage("Checkout Template Files") {
+        
+      bat('dir')
+       
+        // Checking out the branch
+      def svnBranch = "https://dev.enactor.co.uk/svn/dev/Resources/Jenkins/Groovy/TimesheetIntegration"
+      echo "Checking out branch ${svnBranch}"
+      checkoutSVN("TimesheetIntegration/", svnBranch, svnCredentialsId)
+	  }
     
     stage('GetAllTeams'){
       String fetchTeamUrl = "https://api.tempo.io/4/teams?limit=50&offset=0"
@@ -781,10 +792,6 @@ node {
            def roleResponse = sendGetRequest(roleUrl, requestHeaders, "TEMPO", "${tempoRefreshBody}${refreshTokenTempo}")
            if(roleResponse.status == 200){
                roleJSON = readJSON(text: roleResponse.content)
-               roleJSON.results.each{ tempoRole->
-                 def splittedRole = tempoRole.name.split(':');
-                 tempoRole.name = splittedRole[0]  
-               }
                tempoRoles = roleJSON.results
            }
          }
@@ -840,8 +847,7 @@ node {
                  team.timesheets?.each { timesheet ->
                    timesheet.worklogs?.each{worklog ->
                      def costProject = costJSON.results.findAll{project->
-                                project.name == "${worklog.account.key} : ${worklog.account.customer.name} : ${worklog.account.name} - Cost"
-                                // project.name == quote.QuoteNumber + " : " + quote.Contact.Name +" : " + quote.Title + " - Cost"
+                                project.name == "${worklog.account.key} : ${worklog.account.name} - Cost"
                            }
                            if(!costProject.isEmpty()){
                              //fetch rates
@@ -903,29 +909,22 @@ node {
                                    (quote.QuoteNumber == worklog.account.key)
                                  }
                       if(!filteredQuote.isEmpty()){
-                         worklog.CurrencyCode = filteredQuote[0].CurrencyCode
                          boolean isRateMatched = false
                          filteredQuote[0].LineItems.each{item ->
                             if(worklog.role == item.ItemCode){
                                 worklog.costRate = item.UnitAmount
+                                worklog.CurrencyCode = filteredQuote[0].CurrencyCode
                                 worklog.TaxAmount = item.TaxAmount
                                 worklog.TaxType = item.TaxType
                                 isRateMatched = true
                             }
                          }
                          if(!isRateMatched){
-                            // def failedWorklog = JsonOutput.prettyPrint(worklog.toString())
-                            // println("failedWorklog : ${failedWorklog}")
+                            def failedWorklog = JsonOutput.prettyPrint(worklog.toString())
+                            println("failedWorklog : ${failedWorklog}")
 
-                            //fetching roles from Products
-                            def xeroProductItem = fetchItemFromProducts(worklog.role, xeroRefreshBody)
-                            println("xeroProductItem " + xeroProductItem)
-                            worklog.costRate = xeroProductItem.SalesDetails.UnitPrice
-                            worklog.TaxAmount = 0.00
-                            worklog.TaxType = xeroProductItem.SalesDetails.TaxType
-
-                            // currentBuild.result = 'ABORTED'
-                            // error("Quote Number: ${worklog.account.key}  Roles Are Not Matched")
+                            currentBuild.result = 'ABORTED'
+                            error("Quote Number: ${worklog.account.key}  Roles Are Not Matched")
                          }
                       }else{
                         currentBuild.result = 'ABORTED'
@@ -1119,7 +1118,23 @@ node {
   stage('WriteToCSV') {
        if(isInvoiceInExcel){
 
-          XSSFWorkbook workBook = new XSSFWorkbook(localFile.getParent().getParent().getParent().child("DraftInvoice-Template.xlsx").read())
+          bat('dir')
+          bat('dir C:\\Jenkins\\workspace\\TIWI\\Test-Tempo-Integration\\TimesheetIntegration')
+
+
+          //SXSSFWorkbook workBook = new SXSSFWorkbook(new XSSFWorkbook(new File("WIPTemplate.xslx")))
+          
+          println "After CO hudson context"
+          
+          println localFile.list()
+
+          bat('dir')		
+          
+          println localFile.child("\\TimesheetIntegration\\").list()
+          println localFile.child("\\TimesheetIntegration\\").child("DraftInvoice-Template.xlsx").length()
+          
+          XSSFWorkbook workBook = new XSSFWorkbook(localFile.child("\\TimesheetIntegration\\").child("DraftInvoice-Template.txt").read())
+
           println "adding Worklogs - begin"
           
           XSSFSheet sheet = workBook.getSheet("Invoices")
@@ -1226,6 +1241,8 @@ node {
 
           println "writing file - Done"
 
+
+          bat("dir")
           archiveArtifacts artifacts: '**.*'
 
        }

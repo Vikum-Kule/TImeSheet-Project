@@ -1,4 +1,3 @@
-@Grab('com.xlson.groovycsv:groovycsv:1.3')
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 import groovy.json.*
 import org.jenkinsci.plugins.workflow.support.steps.build.RunWrapper;
@@ -15,8 +14,6 @@ import com.cloudbees.plugins.credentials.domains.*
 import org.jenkinsci.plugins.plaincredentials.StringCredentials
 import org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl
 import hudson.util.Secret
-
-import static com.xlson.groovycsv.CsvParser.parseCsv
 
 import java.net.URLEncoder;
 
@@ -59,7 +56,6 @@ String jiraRefreshBody
 def xeroRefreshBody
 def quoteKeyList = []
 def accResponseJSON
-def mappingCSV = params.INTEGRATION_MAPPING
 
 
 def sendGetRequest(url, header, platform, refreshTokenPayload) {
@@ -337,13 +333,7 @@ node {
           currentBuild.result = 'ABORTED'
           error('Select At Least One Quote from Quote List')
         }
-
-        //fetch Integration Mapping Data
-        println params.INTEGRATION_MAPPING;
-        def data = parseCsv(mappingCSV)
-        for(line in data) {
-            println "${line.XERO_Customer}  ${line.JIRA_Budjet_Project_ID}  ${line.CSM_JIRA_NAME}"
-        }
+      
       }
     }
     
@@ -367,18 +357,6 @@ node {
                 }else{
                   quoteList.Quotes.add(quoteJSON.Quotes[0])
                 }
-            }
-          }
-
-          if(!quoteList.isEmpty()){
-            quoteList.Quotes.each{quote ->
-              def data = parseCsv(mappingCSV)
-              for(line in data) {
-                  if(quote.Contact.Name == line.XERO_Customer){
-                      quote.projectKey =  line.JIRA_Budjet_Project_ID
-                      quote.lead = line.CSM_JIRA_NAME
-                  }
-              }
             }
           }
           println("Quote List: ${quoteList}")
@@ -459,7 +437,19 @@ node {
             ])
         {
           quoteList.Quotes.each{quote ->
-                def leadName = quote.lead
+            String query = 'Name="'+ quote.Contact.Name + '"'
+            String encodedQuery = URLEncoder.encode(query, "UTF-8");
+            String fetchCustomerUrl = "https://api.xero.com/api.xro/2.0/contacts/?where="+encodedQuery+"&page=0"
+
+            def requestHeaders = [[name: "Authorization", value: "Bearer ${xeroAccessToken}"],
+                                  [name: "xero-tenant-id", value: "${tenantIdXero}"],
+                                ]
+            def customerResponse = sendGetRequest(fetchCustomerUrl, requestHeaders, "XERO","${xeroRefreshBody}${refreshTokenXero}")
+            if(customerResponse.status == 200){
+              def customerData  = readJSON(text: customerResponse.content)
+              
+              if(!customerData.isEmpty()){
+                def leadName = "${customerData.Contacts[0].ContactPersons[0].FirstName}+${customerData.Contacts[0].ContactPersons[0].LastName}"
                 String encodedLeadName = URLEncoder.encode(leadName, "UTF-8");
                 def userUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/user/search?query=${encodedLeadName}"
 
@@ -471,23 +461,11 @@ node {
                 if(userResponse.status == 200){
                   def userJson  = readJSON(text: userResponse.content)
                   println("userJson"+ userJson)
-                  if(!userJson.isEmpty()){
-                      def filteredUser = null
-                      filteredUser = userJson.find{ user ->
-                          user.displayName.toLowerCase() == quote.lead.toLowerCase()
-                      }
-                      if(filteredUser != null){
-                        quote.leadId = filteredUser.accountId
-                        quote.leadContact = filteredUser.displayName
-                      }else{
-                        currentBuild.result = 'ABORTED'
-                        error('User Not Found In Jira : ' + quote.lead)
-                      }
-                  }else{
-                    currentBuild.result = 'ABORTED'
-                    error('User Not Found In Jira : ' + quote.lead)
-                  }
+                  quote.leadId = userJson[0].accountId
+                  quote.leadContact = customerData.Contacts[0].ContactPersons[0].FirstName+ " " + customerData.Contacts[0].ContactPersons[0].LastName
                 }
+              }
+            }
           }
         }
     
@@ -561,7 +539,7 @@ node {
                                  }          
                                 '''
                 def filterJson  = readJSON(text: filterStructure)
-                filterJson.name = quote.QuoteNumber + " - Filter_testingBudget"
+                filterJson.name = quote.QuoteNumber
                 filterJson.jql = "account.key = " + quote.QuoteNumber
                 def finalFilter = JsonOutput.prettyPrint(filterJson.toString())
 
@@ -686,7 +664,7 @@ node {
                                                   "fields": {
                                                     "project":
                                                     {
-                                                        "key": "",
+                                                        "key": "TIWI",
                                                     },
                                                     "customfield_12382": "",
                                                     "summary": "",
@@ -724,13 +702,12 @@ node {
                                                 }
                                                 '''
                           def issueJson  = readJSON(text: issueStructure)
-                          issueJson.fields.summary = item.ItemCode + " : " + item.Description
-                          issueJson.fields.project.key = quote.projectKey
+                          issueJson.fields.summary = item.ItemCode
                           issueJson.fields.assignee.accountId = null
                           issueJson.fields.customfield_12382 = quote.account.id
                           issueJson.fields.timetracking.originalEstimate = item.Quantity
                           issueJson.fields.timetracking.remainingEstimate = item.Quantity
-                          issueJson.fields.description.content[0].content[0].text = item.ItemCode + " : " + item.Description
+                          issueJson.fields.description.content[0].content[0].text = item.ItemCode
                           def finalIssue = JsonOutput.prettyPrint(issueJson.toString())
                           println("finalIssue : ${finalIssue}") 
                           def issueUrl = "https://api.atlassian.com/ex/jira/2eafded6-d1b9-41bd-8b84-6600f92e0032/rest/api/3/issue"

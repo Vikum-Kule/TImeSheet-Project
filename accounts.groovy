@@ -35,7 +35,6 @@ String workspacePath
 String sourceFolder = 'edtSource'
 String sourceFolderPath
 String scriptFolderPath
-String jobExecutionNode = 'master'
 def tempoRefreshBody
 accountList = []
 
@@ -177,10 +176,9 @@ def updateTempoTokens(refreshToken, credentialId) {
             }else{
               isNextAvailable= false
               accountList = temList
-              accountList.add("Token: "+ tempoAccessToken)
             } 
         }
-        
+        accountList.add("Token: "+ tempoAccessToken)
   } catch (Exception err) {
     println 'Caught an error while running the build. Saving error log in the database.'
     echo err.toString()
